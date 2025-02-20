@@ -230,6 +230,7 @@ function Chat.new(args)
   }, { __index = Chat })
 
   self.bufnr = self.create_buf()
+  require("codecompanion.chatlog").start_chat_log(self.bufnr)
   self.aug = api.nvim_create_augroup(CONSTANTS.AUTOCMD_GROUP .. ":" .. self.bufnr, {
     clear = false,
   })
@@ -1157,6 +1158,62 @@ function Chat.close_last_chat()
       last_chat.ui:hide()
     end
   end
+end
+
+function Chat.rehydrate(chat_log, metadata)
+  -- Use adapter from metadata if available; otherwise default.
+  local adapter_name = metadata.adapter or "default"
+  local adapter = adapters.resolve(config.adapters[adapter_name])
+  if not adapter then
+    vim.notify("Adapter '" .. adapter_name .. "' not found", vim.log.levels.ERROR)
+    return nil
+  end
+  
+  -- Build messages table.
+  local messages = {
+    { role = config.constants.USER_ROLE, content = chat_log }
+  }
+  
+  -- Create a minimal context; extend if needed.
+  local context = { mode = "n", filetype = "lua" }
+  
+  local args = {
+    context = context,
+    messages = messages,
+    from_prompt_library = false,
+    last_role = config.constants.USER_ROLE,
+    settings = adapter:make_from_schema(),
+    adapter = adapter,
+  }
+  
+  local chat = Chat.new(args)
+  if not chat then
+    vim.notify("Chat.new returned nil", vim.log.levels.ERROR)
+    return nil
+  end
+  
+  -- Ensure metadata.strategy exists (default to "chat" if not).
+  if not metadata.strategy then
+    metadata.strategy = "chat"
+  end
+  chat.strategy = metadata.strategy
+  
+  -- Check if the strategy function exists; if not, set a dummy.
+  if not chat[chat.strategy] or type(chat[chat.strategy]) ~= "function" then
+    chat[chat.strategy] = function(self)
+      vim.notify("Dummy strategy executed for historic chat", vim.log.levels.INFO)
+      return self
+    end
+  end
+  
+  -- Set metadata in the chat buffer if possible.
+  if chat.bufnr then
+    vim.api.nvim_buf_set_var(chat.bufnr, "chat_metadata", metadata)
+  else
+    vim.notify("Chat buffer number is nil", vim.log.levels.ERROR)
+  end
+  
+  return chat
 end
 
 return Chat

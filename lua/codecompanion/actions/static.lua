@@ -75,4 +75,60 @@ return {
       end,
     },
   },
+
+{
+  name = "Open Historic Chats",
+  strategy = "",
+  description = "Browse historic chat logs",
+  opts = {
+    index = 3,
+    stop_context_insertion = true,
+  },
+  picker = {
+    prompt = "Select historic chat:",
+    items = function()
+      local log_dir = vim.fn.expand("~/codecompanion_chats/")
+      local pattern = log_dir .. "/chat_*.txt"
+      local files_str = vim.fn.glob(pattern, 1)
+      if files_str == "" then
+        return {}  -- No historic chat logs found.
+      end
+      local files = vim.split(files_str, "\n")
+      local items = {}
+      for _, file in ipairs(files) do
+        table.insert(items, {
+          name = vim.fn.fnamemodify(file, ":t"),
+          callback = function()
+            local meta_file = file:gsub("%.txt$", ".metadata")
+            local meta_fd = io.open(meta_file, "r")
+            local metadata = {}
+            if meta_fd then
+              local meta_content = meta_fd:read("*a")
+              metadata = vim.fn.json_decode(meta_content)
+              meta_fd:close()
+            else
+              vim.notify("No metadata found for " .. file, vim.log.levels.WARN)
+            end
+            local log_fd = io.open(file, "r")
+            if not log_fd then
+              vim.notify("Failed to read chat log: " .. file, vim.log.levels.ERROR)
+              return
+            end
+            local chat_log = log_fd:read("*a")
+            log_fd:close()
+            local Chat = require("codecompanion.strategies.chat")
+            local chat = Chat.rehydrate(chat_log, metadata)
+            if chat then
+              vim.notify("Rehydrated historic chat: " .. vim.fn.fnamemodify(file, ":t"))
+            else
+              vim.notify("Failed to rehydrate historic chat", vim.log.levels.ERROR)
+            end
+          end,
+        })
+      end
+      return items
+    end,
+  },
+},
+
 }

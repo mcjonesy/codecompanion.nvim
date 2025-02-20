@@ -93,4 +93,47 @@ function Actions.launch(context, args)
     :picker(items, provider_opts)
 end
 
+function Actions.open_historic_chat()
+  local log_dir = vim.fn.expand("~/codecompanion_chats/")
+  local pattern = log_dir .. "/chat_*.txt"
+  local files_str = vim.fn.glob(pattern, 1)
+  if files_str == "" then
+    vim.notify("No historic chats found", vim.log.levels.INFO)
+    return
+  end
+  local files = vim.split(files_str, "\n")
+  local chat_list = {}
+  for _, file in ipairs(files) do
+    local name = vim.fn.fnamemodify(file, ":t")
+    table.insert(chat_list, { label = name, path = file })
+  end
+  vim.ui.select(chat_list, { prompt = "Select historic chat:" }, function(choice)
+    if not choice then return end
+    local meta_file = choice.path:gsub("%.txt$", ".metadata")
+    local meta_fd = io.open(meta_file, "r")
+    local metadata = {}
+    if meta_fd then
+      local meta_content = meta_fd:read("*a")
+      metadata = vim.fn.json_decode(meta_content)
+      meta_fd:close()
+    else
+      vim.notify("No metadata found for " .. choice.path, vim.log.levels.WARN)
+    end
+    local log_fd = io.open(choice.path, "r")
+    if not log_fd then
+      vim.notify("Failed to read chat log: " .. choice.path, vim.log.levels.ERROR)
+      return
+    end
+    local chat_log = log_fd:read("*a")
+    log_fd:close()
+    local Chat = require("codecompanion.strategies.chat")
+    local chat = Chat.rehydrate(chat_log, metadata)
+    if chat then
+      vim.notify("Rehydrated historic chat: " .. choice.label)
+    else
+      vim.notify("Failed to rehydrate historic chat", vim.log.levels.ERROR)
+    end
+  end)
+end
+
 return Actions

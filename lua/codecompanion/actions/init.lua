@@ -93,42 +93,20 @@ function Actions.launch(context, args)
 end
 
 function Actions.open_historic_chat()
-  local log_dir = vim.fn.expand("~/codecompanion_chats/")
-  local pattern = log_dir .. "/chat_*.txt"
-  local files_str = vim.fn.glob(pattern, 1)
-  if files_str == "" then
+  local chatlog = require("codecompanion.chatlog")
+  local items = chatlog.list()
+  if #items == 0 then
     vim.notify("No historic chats found", vim.log.levels.INFO)
     return
   end
-  local files = vim.split(files_str, "\n")
-  local chat_list = {}
-  for _, file in ipairs(files) do
-    local name = vim.fn.fnamemodify(file, ":t")
-    table.insert(chat_list, { label = name, path = file })
-  end
-  vim.ui.select(chat_list, { prompt = "Select historic chat:" }, function(choice)
+  local display_items = vim.tbl_map(function(it)
+    return { label = string.format("%s [%s] (%s)", it.title, it.model or "?", it.created_on or ""), item = it }
+  end, items)
+  vim.ui.select(display_items, { prompt = "Select historic chat:", format_item = function(entry) return entry.label end }, function(choice)
     if not choice then return end
-    local meta_file = choice.path:gsub("%.txt$", ".metadata")
-    local meta_fd = io.open(meta_file, "r")
-    local metadata = {}
-    if meta_fd then
-      local meta_content = meta_fd:read("*a")
-      metadata = vim.fn.json_decode(meta_content)
-      meta_fd:close()
-    else
-      vim.notify("No metadata found for " .. choice.path, vim.log.levels.WARN)
-    end
-    local log_fd = io.open(choice.path, "r")
-    if not log_fd then
-      vim.notify("Failed to read chat log: " .. choice.path, vim.log.levels.ERROR)
-      return
-    end
-    local chat_log = log_fd:read("*a")
-    log_fd:close()
-    local Chat = require("codecompanion.strategies.chat")
-    local chat = Chat.rehydrate(chat_log, metadata)
+    local chat = chatlog.rehydrate(choice.item)
     if chat then
-      vim.notify("Rehydrated historic chat: " .. choice.label)
+      vim.notify("Rehydrated historic chat: " .. (choice.item.title or choice.item.chat_id))
     else
       vim.notify("Failed to rehydrate historic chat", vim.log.levels.ERROR)
     end

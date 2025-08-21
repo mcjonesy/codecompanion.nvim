@@ -550,7 +550,6 @@ function Chat.new(args)
   ---@cast self CodeCompanion.Chat
 
   self.bufnr = self.create_buf()
-  require("codecompanion.chatlog").start_chat_log(self.bufnr)
   self.aug = api.nvim_create_augroup(CONSTANTS.AUTOCMD_GROUP .. ":" .. self.bufnr, {
     clear = false,
   })
@@ -594,6 +593,11 @@ function Chat.new(args)
   end
   if not self.adapter then
     return log:error("No adapter found")
+  end
+  if args.logging ~= false then
+    pcall(function()
+      require("codecompanion.chatlog").start_session(self)
+    end)
   end
   util.fire("ChatAdapter", {
     adapter = adapters.make_safe(self.adapter),
@@ -783,6 +787,15 @@ function Chat:add_system_prompt(prompt, opts)
     system_prompt.opts = opts
 
     table.insert(self.messages, index or 1, system_prompt)
+
+    -- persist structured event for rehydration
+    pcall(function()
+      require("codecompanion.chatlog").log_event(self, {
+        type = "message",
+        role = system_prompt.role,
+        content = system_prompt.content,
+      })
+    end)
   end
   return self
 end
@@ -845,6 +858,17 @@ function Chat:add_message(data, opts)
   else
     table.insert(self.messages, message)
   end
+
+  -- persist structured event
+  pcall(function()
+    require("codecompanion.chatlog").log_event(self, {
+      type = "message",
+      role = message.role,
+      content = message.content,
+      reasoning = message.reasoning,
+      tool_calls = message.tool_calls,
+    })
+  end)
 
   return self
 end
@@ -1326,6 +1350,15 @@ function Chat:add_tool_output(tool, for_llm, for_user)
     table.insert(self.messages, output)
   end
 
+  -- Persist tool output as a message event for rehydration
+  pcall(function()
+    require("codecompanion.chatlog").log_event(self, {
+      type = "message",
+      role = output.role,
+      content = output.content,
+    })
+  end)
+
   -- Allow tools to pass in an empty string to not write any output to the buffer
   if for_user == "" then
     return
@@ -1337,6 +1370,16 @@ function Chat:add_tool_output(tool, for_llm, for_user)
   }, {
     type = self.MESSAGE_TYPES.TOOL_MESSAGE,
   })
+
+  -- Log tool result for rehydration
+  pcall(function()
+    require("codecompanion.chatlog").log_event(self, {
+      type = "tool_result",
+      name = tool_call.name,
+      call_id = tool_call.id,
+      content = for_llm,
+    })
+  end)
 end
 
 ---When a request has finished, reset the chat buffer
@@ -1438,60 +1481,15 @@ function Chat.close_last_chat()
   end
 end
 
-function Chat.rehydrate(chat_log, metadata)
-  -- Use adapter from metadata if available; otherwise default.
-  local adapter_name = metadata.adapter or "default"
-  local adapter = adapters.resolve(config.adapters[adapter_name])
-  if not adapter then
-    vim.notify("Adapter '" .. adapter_name .. "' not found", vim.log.levels.ERROR)
-    return nil
+function Chat.rehydrate(path_or_item, metadata)
+  local chatlog = require("codecompanion.chatlog")
+  local item = path_or_item
+  if type(path_or_item) == "string" then
+    item = { jsonl_path = path_or_item, meta_path = (path_or_item:gsub("%.jsonl$", ".meta.json")) }
+  elseif metadata then
+    item = vim.tbl_extend("force", item or {}, { meta_path = metadata })
   end
-  
-  -- Build messages table.
-  local messages = {
-    { role = config.constants.USER_ROLE, content = chat_log }
-  }
-  
-  -- Create a minimal context; extend if needed.
-  local context = { mode = "n", filetype = "lua" }
-  
-  local args = {
-    context = context,
-    messages = messages,
-    from_prompt_library = false,
-    last_role = config.constants.USER_ROLE,
-    settings = adapter:make_from_schema(),
-    adapter = adapter,
-  }
-  
-  local chat = Chat.new(args)
-  if not chat then
-    vim.notify("Chat.new returned nil", vim.log.levels.ERROR)
-    return nil
-  end
-  
-  -- Ensure metadata.strategy exists (default to "chat" if not).
-  if not metadata.strategy then
-    metadata.strategy = "chat"
-  end
-  chat.strategy = metadata.strategy
-  
-  -- Check if the strategy function exists; if not, set a dummy.
-  if not chat[chat.strategy] or type(chat[chat.strategy]) ~= "function" then
-    chat[chat.strategy] = function(self)
-      vim.notify("Dummy strategy executed for historic chat", vim.log.levels.INFO)
-      return self
-    end
-  end
-  
-  -- Set metadata in the chat buffer if possible.
-  if chat.bufnr then
-    vim.api.nvim_buf_set_var(chat.bufnr, "chat_metadata", metadata)
-  else
-    vim.notify("Chat buffer number is nil", vim.log.levels.ERROR)
-  end
-  
-  return chat
+  return chatlog.rehydrate(item)
 end
 
 return Chat

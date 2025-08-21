@@ -10,6 +10,16 @@ local constants = {
 }
 
 local defaults = {
+  chatlog = {
+    enabled = true,
+    dir = vim.fs.joinpath(vim.fn.stdpath("data"), "codecompanion", "chats"),
+    debounce_ms = 500,
+    format = "jsonl",
+    title = {
+      mode = "heuristic", -- heuristic|off (LLM-based can be added later)
+      max_len = 60,
+    },
+  },
   adapters = {
     -- LLMs -------------------------------------------------------------------
     anthropic = "anthropic",

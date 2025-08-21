@@ -1,14 +1,14 @@
 # Getting Started
 
-<p>
-<video controls muted src="https://github.com/user-attachments/assets/16bd6c17-bd70-41a1-83aa-7af45c166ae9"></video>
-</p>
+Please see the author's own [config](https://github.com/olimorris/dotfiles/blob/main/.config/nvim/lua/plugins/coding.lua) for a complete reference of how to setup the plugin.
 
+> [!IMPORTANT]
+> The default adapter in CodeCompanion is [GitHub Copilot](https://docs.github.com/en/copilot/using-github-copilot/copilot-chat/asking-github-copilot-questions-in-your-ide). If you have [copilot.vim](https://github.com/github/copilot.vim) or [copilot.lua](https://github.com/zbirenbaum/copilot.lua) installed then expect CodeCompanion to work out of the box.
 
 ## Configuring an Adapter
 
 > [!NOTE]
-> The adapters that the plugin supports out of the box can be found [here](https://github.com/olimorris/codecompanion.nvim/tree/main/lua/codecompanion/adapters)
+> The adapters that the plugin supports out of the box can be found [here](https://github.com/olimorris/codecompanion.nvim/tree/main/lua/codecompanion/adapters). Or, see the user contributed adapters [here](configuration/adapters.html#community-adapters)
 
 An adapter is what connects Neovim to an LLM. It's the interface that allows data to be sent, received and processed. In order to use the plugin, you need to make sure you've configured an adapter first:
 
@@ -24,7 +24,8 @@ require("codecompanion").setup({
   },
 }),
 ```
-In the example above, we're using the Anthropic adapter for both the chat and inline strategies.
+
+In the example above, we're using the Anthropic adapter for both the chat and inline strategies. Refer to the [adapter](configuration/adapters#changing-a-model) section to understand how to change the default model.
 
 Because most LLMs require an API key you'll need to share that with the adapter. By default, adapters will look in your environment for a `*_API_KEY` where `*` is the name of the adapter such as `ANTHROPIC` or `OPENAI`. However, you can extend the adapter and change the API key like so:
 
@@ -73,60 +74,45 @@ Run `:CodeCompanionChat` to open a chat buffer. Type your prompt and send it by 
 
 You can add context from your code base by using _Variables_ and _Slash Commands_ in the chat buffer.
 
+> [!IMPORTANT]
+> As of `v17.5.0`, variables and tools are now wrapped in curly braces, such as `#{buffer}` or `@{files}`
+
 ### Variables
 
-_Variables_, accessed via `#`, contain data about the present state of Neovim:
+_Variables_, accessed via `#`, contain data about the present state of Neovim. You can find a list of available variables, [here](/usage/chat-buffer/variables.html).
 
-- `#buffer` - Shares the current buffer's code. This can also receive [parameters](usage/chat-buffer/variables#buffer)
-- `#lsp` - Shares LSP information and code for the current buffer
-- `#viewport` - Shares the buffers and lines that you see in the Neovim viewport
+> [!TIP]
+> Use them in your prompt like: `What does the code in #{buffer} do?`
 
 ### Slash Commands
 
 > [!IMPORTANT]
-> These have been designed to work with native Neovim completions alongside nvim-cmp and blink.cmp. To open the native completion menu use `<C-_>` in insert mode when in the chat buffer.
+> These have been designed to work with native Neovim completions alongside nvim-cmp and blink.cmp. To open the native completion menu use `<C-_>` in insert mode when in the chat buffer. Note: Slash commands should also work with coc.nvim.
 
-_Slash commands_, accessed via `/`, run commands to insert additional context into the chat buffer:
+_Slash commands_, accessed via `/`, run commands to insert additional context into the chat buffer. You can find a list of available commands as well as how to use them, [here](/usage/chat-buffer/slash-commands.html).
 
-- `/buffer` - Insert open buffers
-- `/fetch` - Insert URL contents
-- `/file` - Insert a file
-- `/help` - Insert content from help tags
-- `/now` - Insert the current date and time
-- `/symbols` - Insert symbols from a selected file
-- `/terminal` - Insert terminal output
+### Tools
 
-### Agents / Tools
+_Tools_, accessed via `@`, allow the LLM to function as an agent and leverage external tools. You can find a list of available tools as well as how to use them, [here](usage/chat-buffer/tools.html#available-tools).
 
-_Tools_, accessed via `@`, allow the LLM to function as an agent and carry out actions:
-
-- `@cmd_runner` - The LLM will run shell commands (subject to approval)
-- `@editor` - The LLM will edit code in a Neovim buffer
-- `@files` -  The LLM will can work with files on the file system (subject to approval)
-- `@rag` - The LLM will browse and search the internet for real-time information to supplement its response
-
-Tools can also be grouped together to form _Agents_, which are also accessed via `@` in the chat buffer:
-
-- `@full_stack_dev` - Contains the `cmd_runner`, `editor` and `files` tools.
+> [!TIP]
+> Use them in your prompt like: `Can you use the @{grep_search} tool to find occurrences of "add_message"`
 
 ## Inline Assistant
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/21568a7f-aea8-4928-b3d4-f39c6566a23c" alt="Inline Assistant">
+  <video controls muted src="https://github.com/user-attachments/assets/11a42705-d9de-4eb5-a9ab-c8a2772fb4d4"></video>
 </p>
 
 > [!NOTE]
 > The diff provider in the video is [mini.diff](https://github.com/echasnovski/mini.diff)
 
-The Inline Assistant enables an LLM to write code directly into a Neovim buffer.
+The inline assistant enables an LLM to write code directly into a Neovim buffer.
 
-Run `:CodeCompanion <your prompt>` to call the Inline Assistant. The Assistant will evaluate the prompt and either write code or open a chat buffer. You can also make a visual selection and call the Assistant.
+Run `:CodeCompanion your prompt` to call the inline assistant. The assistant will evaluate the prompt and either write code or open a chat buffer. You can also make a visual selection and call the assistant. To send additional context alongside your prompt, you can leverage [variables](/usage/inline-assistant#variables) such as `:CodeCompanion #{buffer} <your prompt>`.
 
-The Assistant has knowledge of your last conversation from a chat buffer. A prompt such as `:CodeCompanion add the new function here` will see the Assistant add a code block directly into the current buffer.
+For convenience, you can call prompts with their `short_name` from the [prompt library](https://github.com/olimorris/codecompanion.nvim/blob/6a4341a4cfe8988a57ad9e8b7dc01ccd6f3e1628/lua/codecompanion/config.lua#L565) such as `:'<,'>CodeCompanion /explain`. The prompt library comes with the following defaults:
 
-For convenience, you can call prompts from the [prompt library](/configuration/prompt-library) via the Assistant such as `:'<,'>CodeCompanion /buffer what does this file do?`. The prompt library comes with the following defaults:
-
-- `/buffer` - Send the current buffer to the LLM alongside a prompt
 - `/commit` - Generate a commit message
 - `/explain` - Explain how selected code in a buffer works
 - `/fix` - Fix the selected code
@@ -143,28 +129,32 @@ Use CodeCompanion to create Neovim commands in command-line mode (`:h Command-li
   <img src="https://github.com/user-attachments/assets/0d427d6d-aa5f-405c-ba14-583830251740" alt="Action Palette">
 </p>
 
-Run `:CodeCompanionActions` to open the action palette, which gives you access to all functionality of the plugin. By default the plugin uses `vim.ui.select`, however, you can change the provider by altering the `display.action_palette.provider` config value to be `telescope` or `mini_pick`. You can also call the Telescope extension with `:Telescope codecompanion`.
+Run `:CodeCompanionActions` to open the action palette, which gives you access to the plugin's features, including your prompts from the [prompt library](/configuration/prompt-library).
+
+By default the plugin uses `vim.ui.select`, however, you can change the provider by altering the `display.action_palette.provider` config value to be `telescope`, `mini_pick`  or `snacks`. You can also call the Telescope extension with `:Telescope codecompanion`.
 
 > [!NOTE]
 > Some actions and prompts will only be visible if you're in _Visual mode_.
 
 ## List of Commands
 
-The plugin has three core commands:
+The plugin has four core commands:
 
 - `CodeCompanion` - Open the inline assistant
 - `CodeCompanionChat` - Open a chat buffer
-- `CodeCompanionCmd` - Generate a command in the command-liine
+- `CodeCompanionCmd` - Generate a command in the command-line
 - `CodeCompanionActions` - Open the _Action Palette_
 
 However, there are multiple options available:
 
-- `CodeCompanion <your prompt>` - Prompt the inline assistant
-- `CodeCompanion /<prompt library>` - Use the [prompt library](configuration/prompt-library) with the inline assistant e.g. `/commit`
+- `CodeCompanion <prompt>` - Prompt the inline assistant
+- `CodeCompanion <adapter> <prompt>` - Prompt the inline assistant with a specific adapter
+- `CodeCompanion /<prompt library>` - Call an item from the [prompt library](configuration/prompt-library)
 - `CodeCompanionChat <prompt>` - Send a prompt to the LLM via a chat buffer
 - `CodeCompanionChat <adapter>` - Open a chat buffer with a specific adapter
-- `CodeCompanionChat Toggle` - Toggle a chat buffer
 - `CodeCompanionChat Add` - Add visually selected chat to the current chat buffer
+- `CodeCompanionChat RefreshCache` - Used to refresh conditional elements in the chat buffer
+- `CodeCompanionChat Toggle` - Toggle a chat buffer
 
 ## Suggested Plugin Workflow
 
@@ -181,4 +171,3 @@ vim.cmd([[cab cc CodeCompanion]])
 
 > [!NOTE]
 > You can also assign prompts from the library to specific mappings. See the [prompt library](configuration/prompt-library#assigning-prompts-to-a-keymap) section for more information.
-

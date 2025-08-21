@@ -1,7 +1,8 @@
 # Configuring Adapters
 
-> [!NOTE]
-> The adapters that the plugin supports out of the box can be found [here](https://github.com/olimorris/codecompanion.nvim/tree/main/lua/codecompanion/adapters). It is recommended that you review them so you better understand the settings that can be customized
+> [!TIP]
+> Want to connect to an LLM that isn't supported out of the box? Check out
+> [these](#community-adapters) user contributed adapters, [create](/extending/adapters.html) your own or post in the [discussions](https://github.com/olimorris/codecompanion.nvim/discussions)
 
 An adapter is what connects Neovim to an LLM. It's the interface that allows data to be sent, received and processed and there are a multitude of ways to customize them.
 
@@ -18,6 +19,9 @@ require("codecompanion").setup({
     inline = {
       adapter = "copilot",
     },
+    cmd = {
+      adapter = "deepseek",
+    }
   },
 }),
 ```
@@ -59,6 +63,44 @@ require("codecompanion").setup({
 > [!NOTE]
 > In this example, we're using the 1Password CLI to extract the OpenAI API Key. You could also use gpg as outlined [here](https://github.com/olimorris/codecompanion.nvim/discussions/601)
 
+Environment variables can also be functions and as a parameter, they receive a copy of the adapter itself.
+
+## Changing a Model
+
+To more easily change a model associated with a strategy you can pass in the `name` and `model` to the adapter:
+
+```lua
+require("codecompanion").setup({
+  strategies = {
+    chat = {
+      adapter = {
+        name = "copilot",
+        model = "claude-sonnet-4-20250514",
+      },
+    },
+  },
+}),
+
+```
+
+To change the default model on an adapter you can modify the `schema.model.default` property:
+
+```lua
+require("codecompanion").setup({
+  adapters = {
+    openai = function()
+      return require("codecompanion.adapters").extend("openai", {
+        schema = {
+          model = {
+            default = "gpt-4.1",
+          },
+        },
+      })
+    end,
+  },
+}),
+```
+
 ## Configuring Adapter Settings
 
 LLMs have many settings such as model, temperature and max_tokens. In an adapter, these sit within a schema table and can be configured during setup:
@@ -66,19 +108,34 @@ LLMs have many settings such as model, temperature and max_tokens. In an adapter
 ```lua
 require("codecompanion").setup({
   adapters = {
-    llama3 = function()
+    qwen3 = function()
       return require("codecompanion.adapters").extend("ollama", {
-        name = "llama3", -- Give this adapter a different name to differentiate it from the default ollama adapter
+        name = "qwen3", -- Give this adapter a different name to differentiate it from the default ollama adapter
+        opts = {
+          vision = true,
+          stream = true,
+        },
         schema = {
           model = {
-            default = "llama3:latest",
+            default = "qwen3:latest",
           },
           num_ctx = {
             default = 16384,
           },
-          num_predict = {
-            default = -1,
+          think = {
+            default = false,
+            -- or, if you want to automatically turn on `think` for certain models:
+            default = function(adapter)
+              -- this'll set `think` to true if the model name contain `qwen3` or `deepseek-r1`
+              local model_name = adapter.model.name:lower()
+              return vim.iter({ "qwen3", "deepseek-r1" }):any(function(kw)
+                return string.find(model_name, kw) ~= nil
+              end)
+            end,
           },
+          keep_alive = {
+            default = '5m',
+          }
         },
       })
     end,
@@ -118,29 +175,19 @@ require("codecompanion").setup({
 }),
 ```
 
-## Changing a Model
+## Community Adapters
 
-Many adapters allow model selection via the `schema.model.default` property:
+Thanks to the community for building the following adapters:
 
-```lua
-require("codecompanion").setup({
-  adapters = {
-    openai = function()
-      return require("codecompanion.adapters").extend("openai", {
-        schema = {
-          model = {
-            default = "gpt-4",
-          },
-        },
-      })
-    end,
-  },
-}),
-```
+- [Venice.ai](https://github.com/olimorris/codecompanion.nvim/discussions/972)
+- [Fireworks.ai](https://github.com/olimorris/codecompanion.nvim/discussions/693)
+- [OpenRouter](https://github.com/olimorris/codecompanion.nvim/discussions/1013)
+
+The section of the discussion forums which is dedicated to user created adapters can be found [here](https://github.com/olimorris/codecompanion.nvim/discussions?discussions_q=is%3Aopen+label%3A%22tip%3A+adapter%22). Use these individual threads as a place to raise issues and ask questions about your specific adapters.
 
 ## Example: Using OpenAI Compatible Models
 
-To use any other OpenAI compatible models, change the URL in the env table, set an API key and define the schema:
+If your LLM states that it is _"OpenAI compatible"_, then you can leverage the `openai_compatible` adapter, modifying some elements such as the URL in the env table, the API key and altering the schema:
 
 > [!NOTE]
 > The schema in this instance is provided only as an example and must be modified according to the requirements of the model you use. The options are chosen to show how to use different types of parameters.
@@ -154,6 +201,7 @@ require("codecompanion").setup({
           url = "http[s]://open_compatible_ai_url", -- optional: default value is ollama url http://127.0.0.1:11434
           api_key = "OpenAI_API_KEY", -- optional: if your endpoint is authenticated
           chat_url = "/v1/chat/completions", -- optional: default value, override if different
+          models_endpoint = "/v1/models", -- optional: attaches to the end of the URL to form the endpoint to retrieve models
         },
         schema = {
           model = {
@@ -289,4 +337,19 @@ require("codecompanion").setup({
 })
 ```
 
-When `show_defaults` is set to `false`, only the adapters specified in your configuration will be used, hiding the default ones provided by the plugin.
+## Controlling Model Choices
+
+When switching between adapters, the plugin typically displays all available model choices for the selected adapter. If you want to simplify the interface and have the default model automatically chosen (without showing any model selection UI), you can set the `show_model_choices` option to `false`:
+
+```lua
+require("codecompanion").setup({
+  adapters = {
+    opts = {
+      show_model_choices = false,
+    },
+    -- Define your custom adapters here
+  },
+})
+```
+
+With `show_model_choices = false`, the default model (as defined in the adapter's schema) will be automatically selected when changing adapters, and no model selection will be shown to the user.

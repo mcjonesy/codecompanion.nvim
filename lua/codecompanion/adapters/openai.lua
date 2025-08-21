@@ -8,14 +8,16 @@ return {
   roles = {
     llm = "assistant",
     user = "user",
+    tool = "tool",
   },
   opts = {
     stream = true,
+    tools = true,
+    vision = true,
   },
   features = {
     text = true,
     tokens = true,
-    vision = true,
   },
   url = "https://api.openai.com/v1/chat/completions",
   env = {
@@ -30,15 +32,29 @@ return {
     ---@return boolean
     setup = function(self)
       local model = self.schema.model.default
-      local model_opts = self.schema.model.choices[model]
-      if model_opts and model_opts.opts then
-        self.opts = vim.tbl_deep_extend("force", self.opts, model_opts.opts)
+      if type(model) == "function" then
+        model = model(self)
+      end
+      local model_opts = self.schema.model.choices
+      if type(model_opts) == "function" then
+        model_opts = model_opts(self)
+      end
+
+      self.opts.vision = true
+
+      if model_opts and model_opts[model] and model_opts[model].opts then
+        self.opts = vim.tbl_deep_extend("force", self.opts, model_opts[model].opts)
+
+        if not model_opts[model].opts.has_vision then
+          self.opts.vision = false
+        end
       end
 
       if self.opts and self.opts.stream then
         self.parameters.stream = true
         self.parameters.stream_options = { include_usage = true }
       end
+
       return true
     end,
 
@@ -56,25 +72,81 @@ return {
     ---@param messages table Format is: { { role = "user", content = "Your prompt here" } }
     ---@return table
     form_messages = function(self, messages)
+      local model = self.schema.model.default
+      if type(model) == "function" then
+        model = model(self)
+      end
+
       messages = vim
         .iter(messages)
         :map(function(m)
-          local model = self.schema.model.default
-          if type(model) == "function" then
-            model = model()
-          end
           if vim.startswith(model, "o1") and m.role == "system" then
             m.role = self.roles.user
+          end
+
+          -- Ensure tool_calls are clean
+          if m.tool_calls then
+            m.tool_calls = vim
+              .iter(m.tool_calls)
+              :map(function(tool_call)
+                return {
+                  id = tool_call.id,
+                  ["function"] = tool_call["function"],
+                  type = tool_call.type,
+                }
+              end)
+              :totable()
+          end
+
+          -- Process any images
+          if m.opts and m.opts.tag == "image" and m.opts.mimetype then
+            if self.opts and self.opts.vision then
+              m.content = {
+                {
+                  type = "image_url",
+                  image_url = {
+                    url = string.format("data:%s;base64,%s", m.opts.mimetype, m.content),
+                  },
+                },
+              }
+            else
+              -- Remove the message if vision is not supported
+              return nil
+            end
           end
 
           return {
             role = m.role,
             content = m.content,
+            tool_calls = m.tool_calls,
+            tool_call_id = m.tool_call_id,
           }
         end)
         :totable()
 
       return { messages = messages }
+    end,
+
+    ---Provides the schemas of the tools that are available to the LLM to call
+    ---@param self CodeCompanion.Adapter
+    ---@param tools table<string, table>
+    ---@return table|nil
+    form_tools = function(self, tools)
+      if not self.opts.tools or not tools then
+        return
+      end
+      if vim.tbl_count(tools) == 0 then
+        return
+      end
+
+      local transformed = {}
+      for _, tool in pairs(tools) do
+        for _, schema in pairs(tool) do
+          table.insert(transformed, schema)
+        end
+      end
+
+      return { tools = transformed }
     end,
 
     ---Returns the number of tokens generated from the LLM
@@ -99,83 +171,150 @@ return {
     ---Output the data from the API ready for insertion into the chat buffer
     ---@param self CodeCompanion.Adapter
     ---@param data table The streamed JSON data from the API, also formatted by the format_data handler
+    ---@param tools? table The table to write any tool output to
     ---@return table|nil [status: string, output: table]
-    chat_output = function(self, data)
-      local output = {}
+    chat_output = function(self, data, tools)
+      if not data or data == "" then
+        return nil
+      end
 
-      if data and data ~= "" then
-        local data_mod = utils.clean_streamed_data(data)
-        local ok, json = pcall(vim.json.decode, data_mod, { luanil = { object = true } })
+      -- Handle both streamed data and structured response
+      local data_mod = type(data) == "table" and data.body or utils.clean_streamed_data(data)
+      local ok, json = pcall(vim.json.decode, data_mod, { luanil = { object = true } })
 
-        if ok and json.choices and #json.choices > 0 then
-          local choice = json.choices[1]
+      if not ok or not json.choices or #json.choices == 0 then
+        return nil
+      end
 
-          if choice.finish_reason then
-            local reason = choice.finish_reason
-            if reason ~= "stop" and reason ~= "" then
-              return {
-                status = "error",
-                output = "The stream was stopped with the a finish_reason of '" .. reason .. "'",
-              }
+      -- Process tool calls from all choices
+      if self.opts.tools and tools then
+        for _, choice in ipairs(json.choices) do
+          local delta = self.opts.stream and choice.delta or choice.message
+
+          if delta and delta.tool_calls and #delta.tool_calls > 0 then
+            for i, tool in ipairs(delta.tool_calls) do
+              local tool_index = tool.index and tonumber(tool.index) or i
+
+              -- Some endpoints like Gemini do not set this (why?!)
+              local id = tool.id
+              if not id or id == "" then
+                id = string.format("call_%s_%s", json.created, i)
+              end
+
+              if self.opts.stream then
+                local found = false
+                for _, existing_tool in ipairs(tools) do
+                  if existing_tool._index == tool_index then
+                    -- Append to arguments if this is a continuation of a stream
+                    if tool["function"] and tool["function"]["arguments"] then
+                      existing_tool["function"]["arguments"] = (existing_tool["function"]["arguments"] or "")
+                        .. tool["function"]["arguments"]
+                    end
+                    found = true
+                    break
+                  end
+                end
+
+                if not found then
+                  table.insert(tools, {
+                    _index = tool_index,
+                    id = id,
+                    type = tool.type,
+                    ["function"] = {
+                      name = tool["function"]["name"],
+                      arguments = tool["function"]["arguments"] or "",
+                    },
+                  })
+                end
+              else
+                table.insert(tools, {
+                  _index = i,
+                  id = id,
+                  type = tool.type,
+                  ["function"] = {
+                    name = tool["function"]["name"],
+                    arguments = tool["function"]["arguments"],
+                  },
+                })
+              end
             end
-          end
-
-          local delta = (self.opts and self.opts.stream) and choice.delta or choice.message
-
-          if delta then
-            if delta.role then
-              output.role = delta.role
-            else
-              output.role = nil
-            end
-
-            -- Some providers may return empty content
-            if delta.content then
-              output.content = delta.content
-            else
-              output.content = ""
-            end
-
-            return {
-              status = "success",
-              output = output,
-            }
           end
         end
       end
+
+      -- Process message content from the first choice
+      local choice = json.choices[1]
+      local delta = self.opts.stream and choice.delta or choice.message
+
+      if not delta then
+        return nil
+      end
+
+      return {
+        status = "success",
+        output = {
+          role = delta.role,
+          content = delta.content,
+        },
+      }
     end,
 
     ---Output the data from the API ready for inlining into the current buffer
     ---@param self CodeCompanion.Adapter
     ---@param data string|table The streamed JSON data from the API, also formatted by the format_data handler
-    ---@param context table Useful context about the buffer to inline to
-    ---@return string|table|nil
+    ---@param context? table Useful context about the buffer to inline to
+    ---@return {status: string, output: table}|nil
     inline_output = function(self, data, context)
+      if self.opts.stream then
+        return log:error("Inline output is not supported for non-streaming models")
+      end
+
       if data and data ~= "" then
-        data = utils.clean_streamed_data(data)
-        local ok, json = pcall(vim.json.decode, data, { luanil = { object = true } })
+        local ok, json = pcall(vim.json.decode, data.body, { luanil = { object = true } })
 
-        if ok then
-          --- Some third-party OpenAI forwarding services may have a return package with an empty json.choices.
-          if not json.choices or #json.choices == 0 then
-            return
-          end
+        if not ok then
+          log:error("Error decoding JSON: %s", data.body)
+          return { status = "error", output = json }
+        end
 
-          local choice = json.choices[1]
-          local delta = (self.opts and self.opts.stream) and choice.delta or choice.message
-          if delta.content then
-            return delta.content
-          end
+        local choice = json.choices[1]
+        if choice.message.content then
+          return { status = "success", output = choice.message.content }
         end
       end
     end,
+    tools = {
+      ---Format the LLM's tool calls for inclusion back in the request
+      ---@param self CodeCompanion.Adapter
+      ---@param tools table The raw tools collected by chat_output
+      ---@return table
+      format_tool_calls = function(self, tools)
+        -- Source: https://platform.openai.com/docs/guides/function-calling?api-mode=chat#handling-function-calls
+        return tools
+      end,
+
+      ---Output the LLM's tool call so we can include it in the messages
+      ---@param self CodeCompanion.Adapter
+      ---@param tool_call {id: string, function: table, name: string}
+      ---@param output string
+      ---@return table
+      output_response = function(self, tool_call, output)
+        -- Source: https://platform.openai.com/docs/guides/function-calling?api-mode=chat#handling-function-calls
+        return {
+          role = self.roles.tool or "tool",
+          tool_call_id = tool_call.id,
+          content = output,
+          opts = { visible = false },
+        }
+      end,
+    },
 
     ---Function to run when the request has completed. Useful to catch errors
     ---@param self CodeCompanion.Adapter
-    ---@param data table
+    ---@param data? table
     ---@return nil
     on_exit = function(self, data)
-      if data.status >= 400 then
+      if data and data.status >= 400 then
         log:error("Error: %s", data.body)
       end
     end,
@@ -187,15 +326,23 @@ return {
       type = "enum",
       desc = "ID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.",
       ---@type string|fun(): string
-      default = "gpt-4o",
+      default = "gpt-4.1",
       choices = {
+        -- gpt-5 and gpt-5-mini (but not gpt-5-nano) require organizational
+        -- verification with biometric data when streaming is enabled:
+        -- https://news.ycombinator.com/item?id=44837367
+        ["gpt-5"] = { opts = { has_vision = true, can_reason = true, stream = false } },
+        ["gpt-5-mini"] = { opts = { has_vision = true, can_reason = true, stream = false } },
+        ["gpt-5-nano"] = { opts = { has_vision = true, can_reason = true, stream = true } },
+
+        ["o4-mini-2025-04-16"] = { opts = { has_vision = true, can_reason = true } },
         ["o3-mini-2025-01-31"] = { opts = { can_reason = true } },
-        ["o1-2024-12-17"] = { opts = { stream = false } },
-        ["o1-preview"] = { opts = { stream = true } },
-        ["o1-mini-2024-09-12"] = { opts = { stream = true } },
-        "gpt-4o",
-        "gpt-4o-mini",
-        "gpt-4-turbo-preview",
+        ["o3-2025-04-16"] = { opts = { has_vision = true, can_reason = true } },
+        ["o1-2024-12-17"] = { opts = { has_vision = true, can_reason = true } },
+        ["gpt-4.1"] = { opts = { has_vision = true } },
+        ["gpt-4o"] = { opts = { has_vision = true } },
+        ["gpt-4o-mini"] = { opts = { has_vision = true } },
+        ["gpt-4-turbo-preview"] = { opts = { has_vision = true } },
         "gpt-4",
         "gpt-3.5-turbo",
       },
@@ -205,14 +352,19 @@ return {
       mapping = "parameters",
       type = "string",
       optional = true,
-      condition = function(schema)
-        local model = schema.model.default
+      condition = function(self)
+        local model = self.schema.model.default
         if type(model) == "function" then
           model = model()
         end
-        if schema.model.choices[model] and schema.model.choices[model].opts then
-          return schema.model.choices[model].opts.can_reason
+        local choices = self.schema.model.choices
+        if type(choices) == "function" then
+          choices = choices(self)
         end
+        if choices and choices[model] and choices[model].opts and choices[model].opts.can_reason then
+          return true
+        end
+        return false
       end,
       default = "medium",
       desc = "Constrains effort on reasoning for reasoning models. Reducing reasoning effort can result in faster responses and fewer tokens used on reasoning in a response.",
@@ -220,6 +372,7 @@ return {
         "high",
         "medium",
         "low",
+        "minimal",
       },
     },
     temperature = {

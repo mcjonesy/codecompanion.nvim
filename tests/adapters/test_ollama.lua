@@ -1,158 +1,340 @@
-local adapter
-local messages
-local response
-
-local adapter_helpers = require("tests.adapters.helpers")
 local h = require("tests.helpers")
+local adapter
 
-local chat
+local new_set = MiniTest.new_set
+T = new_set()
 
-describe("Ollama adapter", function()
-  before_each(function()
-    adapter = require("codecompanion.adapters").extend("ollama", {
-      schema = {
-        model = {
-          default = function()
-            return "llama2"
-          end,
-          choices = { "llama2" },
-        },
-      },
-    })
-    chat, _ = h.setup_chat_buffer(nil, adapter)
-
-    --------------------------------------------------- OUTPUT FROM THE CHAT BUFFER
-    messages = { {
-      content = "Explain Ruby in two words",
-      role = "user",
-    } }
-
-    response = {
-      {
-        request = [[{"model":"llama2","created_at":"2024-03-07T20:02:30.622386Z","message":{"role":"assistant","content":"\n"},"done":false}]],
-        output = {
-          content = "\n",
-          role = "assistant",
-        },
-      },
-      {
-        request = [[{"model":"llama2","created_at":"2024-03-07T20:02:30.652682Z","message":{"role":"assistant","content":"\""},"done":false}]],
-        output = {
-          content = '"',
-          role = "assistant",
-        },
-      },
-      {
-        request = [[{"model":"llama2","created_at":"2024-03-07T20:02:30.681756Z","message":{"role":"assistant","content":"Be"},"done":false}]],
-        output = {
-          content = "Be",
-          role = "assistant",
-        },
-      },
-      {
-        request = [[{"model":"llama2","created_at":"2024-03-07T20:02:30.710758Z","message":{"role":"assistant","content":"aut"},"done":false}]],
-        output = {
-          content = "aut",
-          role = "assistant",
-        },
-      },
-      {
-        request = [[{"model":"llama2","created_at":"2024-03-07T20:02:30.739508Z","message":{"role":"assistant","content":"iful"},"done":false}]],
-        output = {
-          content = "iful",
-          role = "assistant",
-        },
-      },
-      {
-        request = [[{"model":"llama2","created_at":"2024-03-07T20:02:30.770345Z","message":{"role":"assistant","content":" Language"},"done":false}]],
-        output = {
-          content = " Language",
-          role = "assistant",
-        },
-      },
-      {
-        request = [[{"model":"llama2","created_at":"2024-03-07T20:02:30.7994Z","message":{"role":"assistant","content":"\""},"done":false}]],
-        output = {
-          content = '"',
-          role = "assistant",
-        },
-      },
-    }
-    ------------------------------------------------------------------------ // END
-  end)
-
-  after_each(function()
-    h.teardown_chat_buffer()
-  end)
-
-  it("correctly forms the settings", function()
-    -- Equivalent to the chat:submit() method
-    local params = adapter:map_schema_to_params(chat.settings).parameters
-    h.eq({
-      model = adapter.schema.model.default,
-      options = {
-        mirostat = 0,
-        mirostat_eta = 0.1,
-        mirostat_tau = 5,
-        num_ctx = 2048,
-        num_predict = -1,
-        repeat_last_n = 64,
-        repeat_penalty = 1.1,
-        seed = 0,
-        temperature = 0.8,
-        tfs_z = 1,
-        top_k = 40,
-        top_p = 0.9,
-      },
-    }, params)
-
-    -- Expands the model function
-    h.eq(type(adapter.handlers.form_parameters(adapter, adapter:set_env_vars(params), messages).model), "string")
-  end)
-
-  it("can form messages to be sent to the API", function()
-    h.eq({ messages = messages }, adapter.handlers.form_messages(adapter, messages))
-  end)
-
-  it("can output streamed data into a format for the chat buffer", function()
-    h.eq({
-      content = '\n"Beautiful Language"',
-      role = "assistant",
-    }, adapter_helpers.chat_buffer_output(response, adapter))
-  end)
-end)
-
-describe("Ollama adapter with NO STREAMING", function()
-  before_each(function()
-    response = {
-      {
-        request = {
-          body = '{"model":"llama3.1:latest","created_at":"2025-02-09T21:59:27.81386Z","message":{"role":"assistant","content":"**Object-oriented**\\n**Dynamic**"},"done_reason":"stop","done":true,"total_duration":833897208,"load_duration":36003125,"prompt_eval_count":391,"prompt_eval_duration":567000000,"eval_count":8,"eval_duration":228000000}',
-          exit = 0,
-          headers = {
-            "Content-Type: application/json; charset=utf-8",
-            "Date: Sun, 09 Feb 2025 21:59:27 GMT",
-            "Content-Length: 328",
-            "",
-            "",
+T["Ollama adapter"] = new_set({
+  hooks = {
+    pre_case = function()
+      adapter = require("codecompanion.adapters").extend("ollama", {
+        schema = {
+          model = {
+            default = "llama3.1:latest",
           },
-          status = 200,
+          choices = {
+            "llama3.1:latest",
+          },
+          num_ctx = {
+            default = 20000,
+          },
         },
-        output = {
-          content = "**Object-oriented**\n**Dynamic**",
-          role = "assistant",
+      })
+    end,
+  },
+})
+
+T["Ollama adapter"]["it can form messages to be sent to the API"] = function()
+  local messages = { {
+    content = "Explain Ruby in two words",
+    role = "user",
+  } }
+
+  h.eq({ messages = messages }, adapter.handlers.form_messages(adapter, messages))
+end
+
+T["Ollama adapter"]["it can form messages with tools"] = function()
+  local messages = {
+    {
+      role = "user",
+      content = "What's the weather like in London and Paris?",
+    },
+    {
+      role = "llm",
+      tool_calls = {
+        {
+          ["function"] = {
+            arguments = '{"location":"London, UK","units":"fahrenheit"}',
+            name = "weather",
+          },
+          type = "function",
+        },
+        {
+          ["function"] = {
+            arguments = '{"location":"Paris, France","units":"fahrenheit"}',
+            name = "weather",
+          },
+          type = "function",
         },
       },
-    }
+    },
+    {
+      role = "tool",
+      content = "Ran the weather tool **Tool Output**: The weather in London, UK is 15° fahrenheit",
+    },
+    {
+      role = "tool",
+      content = "Ran the weather tool **Tool Output**: The weather in Paris, France is 15° fahrenheit",
+    },
+  }
 
-    adapter = require("codecompanion.adapters").extend("ollama", {
+  local output = {
+    messages = {
+      {
+        content = "What's the weather like in London and Paris?",
+        role = "user",
+      },
+      {
+        role = "llm",
+        tool_calls = {
+          {
+            ["function"] = {
+              arguments = '{"location":"London, UK","units":"fahrenheit"}',
+              name = "weather",
+            },
+            type = "function",
+          },
+          {
+            ["function"] = {
+              arguments = '{"location":"Paris, France","units":"fahrenheit"}',
+              name = "weather",
+            },
+            type = "function",
+          },
+        },
+      },
+      {
+        content = "Ran the weather tool **Tool Output**: The weather in London, UK is 15° fahrenheit",
+        role = "tool",
+      },
+      {
+        content = "Ran the weather tool **Tool Output**: The weather in Paris, France is 15° fahrenheit",
+        role = "tool",
+      },
+    },
+  }
+
+  -- Ensure that a content field is added to the messages
+  local correct_messages = vim.deepcopy(messages)
+  correct_messages[2].content = ""
+
+  h.eq(output, adapter.handlers.form_messages(adapter, messages))
+end
+
+T["Ollama adapter"]["it can form tools to be sent to the API"] = function()
+  local weather = require("tests.strategies.chat.tools.catalog.stubs.weather").schema
+  local tools = { weather = { weather } }
+
+  h.eq({ tools = { weather } }, adapter.handlers.form_tools(adapter, tools))
+end
+
+T["Ollama adapter"]["Streaming"] = new_set()
+
+T["Ollama adapter"]["Streaming"]["can output streamed data into the chat buffer"] = function()
+  local output = ""
+  local lines = vim.fn.readfile("tests/adapters/stubs/ollama_streaming.txt")
+  for _, line in ipairs(lines) do
+    local chat_output = adapter.handlers.chat_output(adapter, line)
+    if chat_output and chat_output.output.content then
+      output = output .. chat_output.output.content
+    end
+  end
+
+  h.eq("**Dynamic Object-Oriented**", output)
+end
+
+T["Ollama adapter"]["Streaming"]["can form messages with images"] = function()
+  local messages = {
+    {
+      content = "How are you?",
+      role = "user",
+    },
+    {
+      content = "I am fine, thanks. How can I help?",
+      role = "assistant",
+    },
+    {
+      content = "somefakebase64encoding",
+      role = "user",
       opts = {
-        stream = false,
+        mimetype = "image/jpg",
+        context_id = "<image>https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg</image>",
+        tag = "image",
+        visible = false,
       },
-    })
-  end)
+    },
+    {
+      content = "What is this an image of?",
+      role = "user",
+    },
+  }
 
-  it("can output data into a format for the chat buffer", function()
-    h.eq(response[#response].output, adapter_helpers.chat_buffer_output(response, adapter))
-  end)
-end)
+  local expected = {
+    {
+      content = "How are you?",
+      role = "user",
+    },
+    {
+      content = "I am fine, thanks. How can I help?",
+      role = "assistant",
+    },
+    {
+      images = { "somefakebase64encoding" },
+      role = "user",
+    },
+    {
+      content = "What is this an image of?",
+      role = "user",
+    },
+  }
+
+  h.eq(expected, adapter.handlers.form_messages(adapter, messages).messages)
+end
+
+T["Ollama adapter"]["Streaming"]["can process tools"] = function()
+  local tools = {}
+  local lines = vim.fn.readfile("tests/adapters/stubs/ollama_tools_streaming.txt")
+  for _, line in ipairs(lines) do
+    adapter.handlers.chat_output(adapter, line, tools)
+  end
+
+  local expected_tool_output = {
+    {
+      ["function"] = {
+        arguments = '{"units":"celsius","location":"London, UK"}',
+        name = "weather",
+      },
+      type = "function",
+    },
+    {
+      ["function"] = {
+        arguments = '{"units":"fahrenheit","location":"Paris, FR"}',
+        name = "weather",
+      },
+      type = "function",
+    },
+  }
+
+  h.expect_json_equals(expected_tool_output[1]["function"]["arguments"], tools[1]["function"]["arguments"])
+  h.expect_json_equals(expected_tool_output[2]["function"]["arguments"], tools[2]["function"]["arguments"])
+
+  -- NOTE: the native ollama API adapter uses the openai format_tool_calls method, and it
+  -- seems to work fine.
+  --
+  -- local formatted_tools = {
+  --   {
+  --     arguments = {
+  --       location = "London, UK",
+  --       units = "celsius",
+  --     },
+  --     name = "weather",
+  --   },
+  --   {
+  --     arguments = {
+  --       location = "Paris, FR",
+  --       units = "fahrenheit",
+  --     },
+  --     name = "weather",
+  --   },
+  -- }
+  --
+  -- h.eq(formatted_tools, adapter.handlers.tools.format_tool_calls(adapter, tools))
+end
+
+T["Ollama adapter"]["Streaming"]["can process reasoning chat output"] = function()
+  local output = {
+    content = "",
+    reasoning = {
+      content = "",
+    },
+  }
+  local lines = vim.fn.readfile("tests/adapters/stubs/ollama_reasoning_streaming.txt")
+  for _, line in ipairs(lines) do
+    local chat_output = adapter.handlers.chat_output(adapter, line)
+    if chat_output then
+      if chat_output.output.reasoning and chat_output.output.reasoning.content then
+        output.reasoning.content = output.reasoning.content .. chat_output.output.reasoning.content
+      end
+      if chat_output.output.content then
+        output.content = output.content .. chat_output.output.content
+      end
+    end
+  end
+
+  h.eq("This is a dummy thinking process.", output.reasoning.content)
+  h.eq("**Dynamic Object-Oriented**", output.content)
+end
+
+T["Ollama adapter"]["No Streaming"] = new_set({
+  hooks = {
+    pre_case = function()
+      adapter = require("codecompanion.adapters").extend("ollama", {
+        opts = {
+          stream = false,
+        },
+      })
+    end,
+  },
+})
+
+T["Ollama adapter"]["No Streaming"]["can output for the chat buffer"] = function()
+  local data = vim.fn.readfile("tests/adapters/stubs/ollama_no_streaming.txt")
+  data = table.concat(data, "\n")
+
+  -- Match the format of the actual request
+  local json = { body = data }
+
+  h.eq("Dynamic Scripting language", adapter.handlers.chat_output(adapter, json).output.content)
+end
+
+T["Ollama adapter"]["No Streaming"]["can process tools"] = function()
+  local data = vim.fn.readfile("tests/adapters/stubs/ollama_tools_no_streaming.txt")
+  data = table.concat(data, "\n")
+
+  local tools = {}
+
+  -- Match the format of the actual request
+  local json = { body = data }
+  adapter.handlers.chat_output(adapter, json, tools)
+
+  local tool_output = {
+    {
+      ["function"] = {
+        arguments = '{"location":"London, UK","units":"celsius"}',
+        name = "weather",
+      },
+      type = "function",
+    },
+    {
+      ["function"] = {
+        arguments = '{"location":"Paris, FR","units":"fahrenheit"}',
+        name = "weather",
+      },
+      type = "function",
+    },
+  }
+
+  h.expect_json_equals(tool_output[1]["function"]["arguments"], tools[1]["function"]["arguments"])
+  h.expect_json_equals(tool_output[2]["function"]["arguments"], tools[2]["function"]["arguments"])
+
+  -- local formatted_tools = {
+  --   {
+  --     arguments = {
+  --       location = "London, UK",
+  --       units = "celsius",
+  --     },
+  --     name = "weather",
+  --   },
+  --   {
+  --     arguments = {
+  --       location = "Paris, FR",
+  --       units = "fahrenheit",
+  --     },
+  --     name = "weather",
+  --   },
+  -- }
+  --
+  -- h.eq(formatted_tools, adapter.handlers.tools.format_tool_calls(adapter, tools))
+end
+
+T["Ollama adapter"]["No Streaming"]["can output for the inline assistant"] = function()
+  local data = vim.fn.readfile("tests/adapters/stubs/ollama_no_streaming.txt")
+  data = table.concat(data, "\n")
+
+  -- Match the format of the actual request
+  local json = { body = data }
+
+  h.eq("Dynamic Scripting language", adapter.handlers.inline_output(adapter, json).output)
+end
+
+return T

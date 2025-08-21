@@ -1,159 +1,78 @@
+local log = require("codecompanion.utils.log")
+
 local Helpers = {}
 
-Helpers.expect = MiniTest.expect --[[@type function]]
-Helpers.eq = MiniTest.expect.equality --[[@type function]]
-Helpers.not_eq = MiniTest.expect.no_equality --[[@type function]]
-Helpers.expect_starts_with = MiniTest.new_expectation( --[[@type function]]
-  -- Expectation subject
-  "string starts with",
-  -- Predicate
-  function(pattern, str)
-    return str:find("^" .. pattern) ~= nil
-  end,
-  -- Fail context
-  function(pattern, str)
-    return string.format("Expected string to start with: %s\nObserved string: %s", vim.inspect(pattern), str)
-  end
-)
+Helpers = vim.tbl_extend("error", Helpers, require("tests.expectations"))
 
-Helpers.get_buf_lines = function(bufnr)
-  return vim.api.nvim_buf_get_lines(bufnr, 0, -1, true)
+---Mock the plugin config
+---@return table
+local function mock_config()
+  local config_module = require("codecompanion.config")
+  config_module.setup = function(args)
+    config_module.config = args or {}
+  end
+  config_module.can_send_code = function()
+    return true
+  end
+  return config_module
 end
 
-Helpers.config = {
-  strategies = {
-    chat = {
-      roles = {
-        llm = "assistant",
-        user = "foo",
-      },
-      agents = {
-        tools = {
-          ["foo"] = {
-            callback = "utils.foo",
-            description = "Some foo function",
-          },
-          ["bar"] = {
-            callback = "utils.bar",
-            description = "Some bar function",
-          },
-          ["bar_again"] = {
-            callback = "utils.bar_again",
-            description = "Some bar_again function",
-          },
-          opts = {
-            system_prompt = [[My tool system prompt]],
-          },
-        },
-      },
-      variables = {
-        ["foo"] = {
-          callback = "tests.strategies.chat.variables.foo",
-          description = "foo",
-        },
-        ["bar"] = {
-          callback = "tests.strategies.chat.variables.bar",
-          description = "bar",
-          opts = {
-            has_params = true,
-          },
-        },
-        ["baz"] = {
-          callback = "tests.strategies.chat.variables.baz",
-          description = "baz",
-        },
-      },
-      slash_commands = {
-        ["file"] = {
-          callback = "strategies.chat.slash_commands.file",
-          description = "Insert a file",
-          opts = {
-            contains_code = true,
-            max_lines = 1000,
-            provider = "default", -- default|telescope|mini_pick|fzf_lua
-          },
-        },
-      },
-    },
-  },
-  prompt_library = {
-    ["Test References"] = {
-      strategy = "chat",
-      description = "Add some references",
-      opts = {
-        index = 1,
-        is_default = true,
-        is_slash_cmd = false,
-        short_name = "test_ref",
-        auto_submit = false,
-      },
-      references = {
-        {
-          type = "file",
-          path = {
-            "lua/codecompanion/health.lua",
-            "lua/codecompanion/http.lua",
-          },
-        },
-      },
-      prompts = {
-        {
-          role = "foo",
-          content = "I need some references",
-        },
-      },
-    },
-  },
-  display = {
-    chat = {
-      show_settings = false,
-    },
-  },
-  opts = {
-    system_prompt = "default system prompt",
-  },
-}
+---Set up the CodeCompanion plugin with test configuration
+---@return nil
+Helpers.setup_plugin = function()
+  local test_config = require("tests.config")
+  test_config.strategies.chat.adapter = "test_adapter"
 
-Helpers.setup_chat_buffer = function(config, adapter)
   local codecompanion = require("codecompanion")
+  codecompanion.setup(test_config)
+  return codecompanion
+end
 
-  adapter = adapter
-    or {
-      name = "TestAdapter",
-      url = "https://api.openai.com/v1/chat/completions",
-      roles = {
-        llm = "assistant",
-        user = "user",
-      },
-      headers = {
-        content_type = "application/json",
-      },
-      parameters = {
-        stream = true,
-      },
-      handlers = {
-        form_parameters = function()
-          return {}
-        end,
-        form_messages = function()
-          return {}
-        end,
-        is_complete = function()
-          return false
-        end,
-      },
-      schema = {
-        model = {
-          default = "gpt-3.5-turbo",
-        },
-      },
-    }
+---Mock the submit function of a chat to avoid actual API calls
+---@param response string The mocked response content
+---@param status? string The status to set (default: "success")
+---@return function The original submit function for restoration
+Helpers.mock_submit = function(response, status)
+  local original_submit = require("codecompanion.strategies.chat").submit
 
-  codecompanion.setup(config or Helpers.config)
+  require("codecompanion.strategies.chat").submit = function(self)
+    -- Mock submission instead of calling actual API
+    self:add_buf_message({
+      role = "llm",
+      content = response or "This is a mocked response",
+    })
+    self.status = status or "success"
+    self:done({ response or "Mocked response" })
+    return true
+  end
+
+  return original_submit
+end
+
+---Restore the original submit function
+---@param original function The original submit function to restore
+---@return nil
+Helpers.restore_submit = function(original)
+  require("codecompanion.strategies.chat").submit = original
+end
+
+---Setup and mock a chat buffer
+---@param config? table
+---@param adapter? table
+---@return CodeCompanion.Chat, CodeCompanion.Tools, CodeCompanion.Variables
+Helpers.setup_chat_buffer = function(config, adapter)
+  local test_config = vim.deepcopy(require("tests.config"))
+  local config_module = mock_config()
+  config_module.setup(vim.tbl_deep_extend("force", test_config, config or {}))
+
+  -- Extend the adapters
+  if adapter then
+    config_module.adapters[adapter.name] = adapter.config
+  end
 
   local chat = require("codecompanion.strategies.chat").new({
-    context = { bufnr = 1, filetype = "lua" },
-    adapter = require("codecompanion.adapters").extend(adapter),
+    buffer_context = { bufnr = 1, filetype = "lua" },
+    adapter = adapter and adapter.name or "test_adapter",
   })
   chat.vars = {
     foo = {
@@ -163,36 +82,6 @@ Helpers.setup_chat_buffer = function(config, adapter)
   }
   local tools = require("codecompanion.strategies.chat.tools").new({ bufnr = 1 })
   local vars = require("codecompanion.strategies.chat.variables").new()
-
-  package.loaded["codecompanion.utils.foo"] = {
-    name = "foo",
-    cmds = {
-      function(self, actions, input)
-        self.chat:add_buf_message({ role = "user", content = "This is from the foo tool" })
-        return { status = "success", msg = "" }
-      end,
-    },
-    system_prompt = function()
-      return "my foo system prompt"
-    end,
-  }
-  package.loaded["codecompanion.utils.bar"] = {
-    name = "bar",
-    cmds = {
-      function(self, actions, input)
-        self.chat:add_buf_message({ role = "user", content = "This is from the bar tool" })
-        return { status = "success", msg = "" }
-      end,
-    },
-    system_prompt = function()
-      return "my bar system prompt"
-    end,
-  }
-  package.loaded["codecompanion.utils.bar_again"] = {
-    system_prompt = function()
-      return "baz"
-    end,
-  }
 
   return chat, tools, vars
 end
@@ -213,10 +102,92 @@ Helpers.send_to_llm = function(chat, message, callback)
   chat:done({ message })
 end
 
+---Clean down the chat buffer if required
+---@return nil
 Helpers.teardown_chat_buffer = function()
   package.loaded["codecompanion.utils.foo"] = nil
   package.loaded["codecompanion.utils.bar"] = nil
   package.loaded["codecompanion.utils.bar_again"] = nil
+end
+
+---Simulates a real tool call in a chat buffer
+---@param chat CodeCompanion.Chat
+---@param tool_call table The tool call data
+---@param tool_output string The output from the tool
+---@param messages? table Additional messages to add to the chat
+Helpers.make_tool_call = function(chat, tool_call, tool_output, messages)
+  messages = messages or {}
+
+  -- Firstly, add the LLM's intro message before the tool call
+  if messages.llm_initial_response then
+    chat:add_buf_message({
+      role = "llm",
+      content = messages.llm_initial_response,
+    }, { type = chat.MESSAGE_TYPES.LLM_MESSAGE })
+    chat:add_message({
+      role = "llm",
+      content = messages.llm_initial_response,
+    })
+  end
+
+  -- Then add the LLM's tool call
+  chat:add_message({
+    role = "llm",
+    tool_calls = { tool_call.function_call },
+  }, { visible = false })
+
+  -- Then add the tool output
+  chat:add_tool_output(tool_call, tool_output)
+
+  -- Finally, add any LLM messages
+  if messages.llm_final_response then
+    chat:add_buf_message({
+      role = "llm",
+      content = messages.llm_final_response,
+    }, { type = chat.MESSAGE_TYPES.LLM_MESSAGE })
+    chat:add_message({
+      role = "llm",
+      content = messages.llm_final_response,
+    })
+  end
+end
+
+---Get the lines of a buffer
+---@param bufnr number
+---@return table
+Helpers.get_buf_lines = function(bufnr)
+  return vim.api.nvim_buf_get_lines(bufnr, 0, -1, true)
+end
+
+---Setup the inline buffer
+---@param config table
+---@return CodeCompanion.Inline
+Helpers.setup_inline = function(config)
+  local test_config = vim.deepcopy(require("tests.config"))
+  local config_module = mock_config()
+  config_module.setup(vim.tbl_deep_extend("force", test_config, config or {}))
+
+  return require("codecompanion.strategies.inline").new({
+    buffer_context = {
+      winnr = 0,
+      bufnr = 0,
+      filetype = "lua",
+      start_line = 1,
+      end_line = 1,
+      start_col = 0,
+      end_col = 0,
+    },
+  })
+end
+
+---Start a child Neovim instance with minimal configuration
+---@param child table
+---@return nil
+Helpers.child_start = function(child)
+  child.restart({ "-u", "scripts/minimal_init.lua" })
+  child.o.statusline = ""
+  child.o.laststatus = 0
+  child.o.cmdheight = 0
 end
 
 return Helpers

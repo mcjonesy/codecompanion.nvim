@@ -118,6 +118,16 @@ function M.replace_vars(msg, vars, mapping)
   return string.format(msg, unpack(replacements))
 end
 
+---Safely get the filetype
+---@param filetype string
+---@return string
+function M.safe_filetype(filetype)
+  if filetype == "C++" then
+    return "cpp"
+  end
+  return filetype
+end
+
 ---Set an option in Neovim
 ---@param bufnr integer
 ---@param opt string
@@ -130,6 +140,24 @@ function M.set_option(bufnr, opt, value)
   end
   if api.nvim_buf_set_option then
     return api.nvim_buf_set_option(bufnr, opt, value)
+  end
+end
+
+---Make a timestamp relative
+---@param timestamp number Unix timestamp
+---@return string Relative time string (e.g. "5m", "2h")
+function M.make_relative(timestamp)
+  local now = os.time()
+  local diff = now - timestamp
+
+  if diff < 60 then
+    return diff .. "s"
+  elseif diff < 3600 then
+    return math.floor(diff / 60) .. "m"
+  elseif diff < 86400 then
+    return math.floor(diff / 3600) .. "h"
+  else
+    return math.floor(diff / 86400) .. "d"
   end
 end
 

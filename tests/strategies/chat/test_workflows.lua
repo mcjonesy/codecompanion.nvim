@@ -8,11 +8,43 @@ local chat
 T["Workflows"] = new_set({
   hooks = {
     pre_case = function()
-      h.setup_chat_buffer()
+      -- h.setup_chat_buffer()
       chat = require("codecompanion.strategies")
         .new({
-          context = { bufnr = 0, filetype = "lua" },
+          buffer_context = { bufnr = 0, filetype = "lua" },
           selected = {
+            adapter = require("codecompanion.adapters").extend({
+              name = "TestAdapter",
+              formatted_name = "Test Adapter",
+              url = "https://api.openai.com/v1/chat/completions",
+              roles = {
+                llm = "assistant",
+                user = "user",
+              },
+              headers = {
+                content_type = "application/json",
+              },
+              parameters = {
+                stream = true,
+              },
+              handlers = {
+                form_parameters = function()
+                  return {}
+                end,
+                form_messages = function()
+                  return {}
+                end,
+                is_complete = function()
+                  return false
+                end,
+              },
+              schema = {
+                model = {
+                  default = "gpt-3.5-turbo",
+                },
+              },
+            }),
+
             description = "Test Workflow",
             name = "Code workflow",
             strategy = "workflow",
@@ -35,12 +67,12 @@ T["Workflows"] = new_set({
                   opts = { auto_submit = false },
                   -- Scope this prompt to the cmd_runner tool
                   condition = function()
-                    return vim.g.codecompanion_current_tool == "cmd_runner"
+                    return _G.codecompanion_current_tool == "cmd_runner"
                   end,
                   -- Repeat until the tests pass, as indicated by the testing flag
                   -- which the cmd_runner tool sets on the chat buffer
                   repeat_until = function(chat)
-                    return chat.tool_flags.testing == true
+                    return chat.tool_registry.flags.testing == true
                   end,
                   content = "The tests have failed",
                 },
@@ -51,7 +83,7 @@ T["Workflows"] = new_set({
                   role = "user",
                   opts = { auto_submit = false },
                   condition = function()
-                    return not vim.g.codecompanion_current_tool
+                    return not _G.codecompanion_current_tool
                   end,
                   content = "Tests passed!",
                 },
@@ -72,19 +104,19 @@ T["Workflows"]["prompts are sequentially added to the chat buffer"] = function()
   h.eq("First prompt", h.get_buf_lines(chat.bufnr)[#h.get_buf_lines(chat.bufnr)])
 
   -- Let's mock a failing tool test
-  vim.g.codecompanion_current_tool = "cmd_runner"
+  _G.codecompanion_current_tool = "cmd_runner"
   h.send_to_llm(chat, "Calling a tool...")
   h.eq("The tests have failed", h.get_buf_lines(chat.bufnr)[#h.get_buf_lines(chat.bufnr)])
 
   -- And again
-  vim.g.codecompanion_current_tool = "cmd_runner"
+  _G.codecompanion_current_tool = "cmd_runner"
   h.send_to_llm(chat, "Calling a tool...")
   h.eq("The tests have failed", h.get_buf_lines(chat.bufnr)[#h.get_buf_lines(chat.bufnr)])
 
   -- Now let's mock a passing test
-  chat.tool_flags.testing = true
+  chat.tool_registry.flags.testing = true
   h.send_to_llm(chat, "Calling a tool...", function()
-    vim.g.codecompanion_current_tool = nil
+    _G.codecompanion_current_tool = nil
   end)
   h.eq("Tests passed!", h.get_buf_lines(chat.bufnr)[#h.get_buf_lines(chat.bufnr)])
 

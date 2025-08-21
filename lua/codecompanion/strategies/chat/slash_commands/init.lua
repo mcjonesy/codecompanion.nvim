@@ -1,3 +1,4 @@
+local buf_utils = require("codecompanion.utils.buffers")
 local config = require("codecompanion.config")
 local log = require("codecompanion.utils.log")
 
@@ -12,8 +13,9 @@ local function resolve(callback)
   end
 
   -- Try loading the tool from the user's config
-  ok, slash_command = pcall(loadfile, callback)
-  if not ok then
+  local err
+  slash_command, err = loadfile(callback)
+  if err then
     return log:error("Could not load the slash command: %s", callback)
   end
 
@@ -66,6 +68,13 @@ function SlashCommands:execute(item, chat)
     return log:error("Slash command not found: %s", label)
   end
 
+  if callback.enabled then
+    local enabled, err = callback.enabled(chat)
+    if enabled == false then
+      return log:warn(err)
+    end
+  end
+
   return callback
     .new({
       Chat = chat,
@@ -75,13 +84,17 @@ function SlashCommands:execute(item, chat)
     :execute(self)
 end
 
----Function for external objects to add references via Slash Commands
+---Function for external objects to add context via Slash Commands
 ---@param chat CodeCompanion.Chat
 ---@param slash_command string
 ---@param opts { path: string, url?: string, description: string, [any]: any }
 ---@return nil
-function SlashCommands.references(chat, slash_command, opts)
+function SlashCommands.context(chat, slash_command, opts)
   local slash_commands = {
+    buffer = require("codecompanion.strategies.chat.slash_commands.buffer").new({
+      Chat = chat,
+      config = config.strategies.chat.slash_commands["buffer"],
+    }),
     file = require("codecompanion.strategies.chat.slash_commands.file").new({
       Chat = chat,
     }),
@@ -94,6 +107,24 @@ function SlashCommands.references(chat, slash_command, opts)
     }),
   }
 
+  -- Check if the file is already open as a buffer
+  if slash_command == "file" then
+    local buffer = {}
+    for _, buf in ipairs(buf_utils.get_open()) do
+      if buf.relative_path == opts.path then
+        buffer = {
+          bufnr = buf.bufnr,
+          name = buf.path,
+          path = buf.path,
+        }
+        break
+      end
+    end
+    if not vim.tbl_isempty(buffer) then
+      return slash_commands["buffer"]:output(buffer, { description = opts.description, silent = true })
+    end
+  end
+
   if slash_command == "file" or slash_command == "symbols" then
     return slash_commands[slash_command]:output({ description = opts.description, path = opts.path }, { silent = true })
   end
@@ -105,8 +136,8 @@ function SlashCommands.references(chat, slash_command, opts)
     opts.silent = true
     opts.url = opts.url or opts.path
     opts.description = opts.description
-    opts.auto_restore_cache = opts.opts.auto_restore_cache
-    opts.ignore_cache = opts.opts.ignore_cache
+    opts.auto_restore_cache = opts.opts and opts.opts.auto_restore_cache
+    opts.ignore_cache = opts.opts and opts.opts.ignore_cache
 
     return slash_commands[slash_command]:output(opts.url, opts)
   end

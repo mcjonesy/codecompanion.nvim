@@ -4,19 +4,25 @@ In order to enable a tighter integration between CodeCompanion and your Neovim c
 
 ## List of Events
 
-The events that you can access are:
+The events that are fired from within the plugin are:
 
 - `CodeCompanionChatCreated` - Fired after a chat has been created for the first time
 - `CodeCompanionChatOpened` - Fired after a chat has been opened
 - `CodeCompanionChatHidden` - Fired after a chat has been hidden
 - `CodeCompanionChatClosed` - Fired after a chat has been permanently closed
+- `CodeCompanionChatSubmitted` - Fired after a chat has been submitted
+- `CodeCompanionChatDone` - Fired after a chat has received the response
 - `CodeCompanionChatStopped` - Fired after a chat has been stopped
+- `CodeCompanionChatCleared` - Fired after a chat has been cleared
 - `CodeCompanionChatAdapter` - Fired after the adapter has been set in the chat
 - `CodeCompanionChatModel` - Fired after the model has been set in the chat
-- `CodeCompanionChatPin` - Fired after a pinned reference has been updated in the messages table
+- `CodeCompanionChatPin` - Fired after a pinned context item has been updated in the messages table
+- `CodeCompanionContextChanged` - Fired when the context that a chat buffer follows, changes
+- `CodeCompanionToolsStarted` - Fired when the tool system has been initiated
+- `CodeCompanionToolsFinished` - Fired when the tool system has finished running all tools
 - `CodeCompanionToolAdded` - Fired when a tool has been added to a chat
-- `CodeCompanionAgentStarted` - Fired when an agent has been initiated in the chat
-- `CodeCompanionAgentFinished` - Fired when an agent has finished all tool executions
+- `CodeCompanionToolStarted` - Fired when a tool has started executing
+- `CodeCompanionToolFinished` - Fired when a tool has finished executing
 - `CodeCompanionInlineStarted` - Fired at the start of the Inline strategy
 - `CodeCompanionInlineFinished` - Fired at the end of the Inline strategy
 - `CodeCompanionRequestStarted` - Fired at the start of any API request
@@ -24,6 +30,12 @@ The events that you can access are:
 - `CodeCompanionRequestFinished` - Fired at the end of any API request
 - `CodeCompanionDiffAttached` - Fired when in Diff mode
 - `CodeCompanionDiffDetached` - Fired when exiting Diff mode
+- `CodeCompanionDiffAccepted` - Fired when a user accepts a change
+- `CodeCompanionDiffRejected` - Fired when a user rejects a change
+
+There are also events that can be utilized to trigger commands from within the plugin:
+
+- `CodeCompanionChatRefreshCache` - Used to refresh conditional elements in the chat buffer
 
 ## Event Data
 
@@ -71,3 +83,10 @@ vim.api.nvim_create_autocmd({ "User" }, {
 })
 ```
 
+You can trigger an event with:
+
+```lua
+vim.api.nvim_exec_autocmds("User", {
+  pattern = "CodeCompanionChatRefreshCache",
+})
+```

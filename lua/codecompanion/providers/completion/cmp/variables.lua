@@ -21,11 +21,12 @@ function source:get_keyword_pattern()
 end
 
 function source:complete(_, callback)
-  local items = require("codecompanion.completion").variables()
+  local items = require("codecompanion.providers.completion").variables()
   local kind = require("cmp").lsp.CompletionItemKind.Variable
 
   vim.iter(items):map(function(item)
     item.kind = kind
+    item.insertText = string.format("#{%s}", item.label:sub(2))
     return item
   end)
 

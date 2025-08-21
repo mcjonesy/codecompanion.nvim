@@ -4,19 +4,49 @@
   <img src="https://github.com/user-attachments/assets/642ef2df-f1c4-41c4-93e2-baa66d7f0801" />
 </p>
 
-Variables allow you to share data about the current state of Neovim with an LLM. Simply type `#` in the chat buffer and trigger code completion if you're not using blink.cmp or nvim-cmp. Alternatively, type the variables manually. After the response is sent to the LLM, you should see the variable output tagged as a reference in the chat buffer.
+Variables allow you to dynamically insert Neovim context into your chat messages using the `#{variable_name}` syntax. They're processed when you send your message to the LLM, automatically including relevant content like buffer contents, LSP diagnostics, or your current viewport. Type `#` in the chat buffer to see available variables through code completion, or type them manually.
 
-Custom variables can be shared by adding them to the `strategies.chat.variables` table in your configuration.
+Custom variables can be shared in the chat buffer by adding them to the `strategies.chat.variables` table in your configuration.
+
+## Basic Usage
+
+Variables use the `#{variable_name}` syntax to dynamically insert content into your chat. For example `#{buffer}`. Variables are processed when you send your message to the LLM.
 
 ## #buffer
 
-The _#buffer_ variable shares the full contents from the buffer that the user was last in when they initiated `:CodeCompanionChat`. To select another buffer, use the _/buffer_ slash command. These buffers can be [pinned or watched](/usage/chat-buffer/index#references) to enable updated content to be automatically shared with the LLM.
+> [!IMPORTANT]
+> By default, CodeCompanion automatically applies `{watch}` to all buffers
 
-It's also possible to pass parameters to the _#buffer_ variable:
+The `#{buffer}` variable shares buffer contents with the LLM. It has two special parameters which control how content is shared with the LLM:
 
-- `#buffer:23-30` - To send lines 23 to 30 of the current buffer the LLM
-- `#buffer:pin` - To pin the current buffer
-- `#buffer:watch` - To watch the current buffer
+**`{pin}`** - Sends the entire buffer content to the LLM whenever the buffer changes. Use this when you want the LLM to always have the complete, up-to-date file context.
+
+**`{watch}`** - Sends only the changed portions of the buffer to the LLM. Use this for large files where you only want to share incremental changes to reduce token usage.
+
+
+### Basic Usage
+
+- `#{buffer}` - Shares the current buffer (last one you were in)
+
+### Target Specific Buffers
+
+- `#{buffer:init.lua}` - Shares a specific file by name
+- `#{buffer:src/main.rs}` - Shares a file by relative path
+- `#{buffer:utils}` - Shares a file containing "utils" in the path
+
+### With Parameters
+
+- `#{buffer}{pin}` - Pins the buffer (sends entire buffer on changes)
+- `#{buffer}{watch}` - Watches for changes (sends only changes)
+- `#{buffer:config.lua}{pin}` - Combines targeting with parameters
+
+### Multiple Buffers
+
+```
+Compare #{buffer:old_file.js} with #{buffer:new_file.js} and explain the differences.
+```
+
+> **Note:** For selecting multiple buffers with more control, use the `/buffer` slash command.
 
 ## #lsp
 
@@ -24,9 +54,9 @@ It's also possible to pass parameters to the _#buffer_ variable:
 > The [Action Palette](/usage/action-palette) has a pre-built prompt which asks an LLM to explain LSP diagnostics in a
 > visual selection
 
-The _#lsp_ variable shares any information from the LSP servers that active in the current buffer. This can serve as useful context should you wish to troubleshoot any errors with an LLM.
+The _lsp_ variable shares any information from the LSP servers that active in the current buffer. This can serve as useful context should you wish to troubleshoot any errors with an LLM.
 
 ## #viewport
 
-The _#viewport_ variable shares with the LLM, exactly what you see on your screen at the point a response is sent (excluding the chat buffer of course).
+The _viewport_ variable shares with the LLM, exactly what you see on your screen at the point a response is sent (excluding the chat buffer of course).
 

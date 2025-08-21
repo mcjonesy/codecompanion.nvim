@@ -21,20 +21,18 @@ function source:get_keyword_pattern()
 end
 
 function source:complete(params, callback)
-  local items = require("codecompanion.completion").tools()
-  local agent_kind = require("cmp").lsp.CompletionItemKind.Struct
+  local items = require("codecompanion.providers.completion").tools()
   local tool_kind = require("cmp").lsp.CompletionItemKind.Snippet
 
   vim.iter(items):map(function(item)
     if item.name == "tools" then
       item.kind = tool_kind
-    else
-      item.kind = agent_kind
     end
     item.config = self.config
     item.context = {
       bufnr = params.context.bufnr,
     }
+    item.insertText = string.format("@{%s}", item.label:sub(2))
     return item
   end)
 

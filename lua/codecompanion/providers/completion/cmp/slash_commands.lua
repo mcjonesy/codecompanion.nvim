@@ -1,5 +1,5 @@
 local SlashCommands = require("codecompanion.strategies.chat.slash_commands")
-local completion = require("codecompanion.completion")
+local completion = require("codecompanion.providers.completion")
 local strategy = require("codecompanion.strategies")
 
 local source = {}
@@ -17,7 +17,7 @@ function source:get_trigger_characters()
 end
 
 function source:get_keyword_pattern()
-  return [[\w\+]]
+  return [[/\w\+]]
 end
 
 function source:complete(params, callback)

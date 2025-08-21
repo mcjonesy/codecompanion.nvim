@@ -5,17 +5,22 @@ local config = require("codecompanion.config")
 local log = require("codecompanion.utils.log")
 
 ---@class CodeCompanion.Cmd
+---@field adapter CodeCompanion.Adapter The adapter to use for the chat
+---@field buffer_context table The context of the buffer that the chat was initiated from
+---@field prompts table Any prompts to be sent to the LLM
+
+---@class CodeCompanion.Cmd
 local Cmd = {}
 
 ---@param args table
 function Cmd.new(args)
   local self = setmetatable({
-    context = args.context,
+    buffer_context = args.buffer_context,
     prompts = args.prompts,
     opts = args.opts,
   }, { __index = Cmd })
 
-  self.adapter = adapters.resolve(config.adapters[config.strategies.cmd.adapter])
+  self.adapter = adapters.resolve(config.strategies.cmd.adapter)
   if not self.adapter then
     return log:error("No adapter found")
   end
@@ -45,28 +50,31 @@ function Cmd:start()
     table.insert(messages, p)
   end)
 
-  client.new({ adapter = self.adapter:map_schema_to_params() }):request(self.adapter:map_roles(messages), {
-    ---@param err string
-    ---@param data table
-    callback = function(err, data)
-      if err then
-        return log:error(err)
-      end
-
-      if data then
-        local result = self.adapter.handlers.chat_output(self.adapter, data)
-        if result and result.output and result.output.content then
-          local content = result.output.content
-          content:gsub("^%s*(.-)%s*$", "%1")
-          vim.api.nvim_feedkeys(content, "n", false)
+  client
+    .new({ adapter = self.adapter:map_schema_to_params() })
+    :request({ messages = self.adapter:map_roles(messages) }, {
+      ---@param err string
+      ---@param data table
+      ---@param adapter CodeCompanion.Adapter The modified adapter from the http client
+      callback = function(err, data, adapter)
+        if err then
+          return log:error(err)
         end
-      end
-    end,
-    done = function() end,
-  }, {
-    bufnr = self.context.bufnr,
-    strategy = "cmd",
-  })
+
+        if data then
+          local result = self.adapter.handlers.chat_output(adapter, data)
+          if result and result.output and result.output.content then
+            local content = result.output.content
+            content:gsub("^%s*(.-)%s*$", "%1")
+            vim.api.nvim_feedkeys(content, "n", false)
+          end
+        end
+      end,
+      done = function() end,
+    }, {
+      bufnr = self.buffer_context.bufnr,
+      strategy = "cmd",
+    })
 end
 
 return Cmd

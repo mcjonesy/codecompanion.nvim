@@ -1,4 +1,3 @@
-local buf_utils = require("codecompanion.utils.buffers")
 local config = require("codecompanion.config")
 
 ---@class CodeCompanion.Variable.User: CodeCompanion.Variable
@@ -22,10 +21,10 @@ function Variable:output()
 
   self.Chat:add_message({
     role = config.constants.USER_ROLE,
-    content = self.config.callback(),
-  }, { reference = id, tag = "variable", visible = false })
+    content = self.config.callback(self),
+  }, { context_id = id, tag = "variable", visible = false })
 
-  self.Chat.references:add({
+  self.Chat.context:add({
     bufnr = self.Chat.bufnr,
     id = id,
     source = "codecompanion.strategies.chat.variables.user",

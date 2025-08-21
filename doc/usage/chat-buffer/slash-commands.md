@@ -12,6 +12,9 @@ Slash Commands enable you to quickly add context to the chat buffer. They are co
 <img src="https://github.com/user-attachments/assets/1be7593b-f77f-44f9-a418-1d04b3f46785" />
 </p>
 
+> [!NOTE]
+> As of [v16.2.0](https://github.com/olimorris/codecompanion.nvim/releases/tag/v16.2.0), buffers are now watched by default
+
 The _buffer_ slash command enables you to add the contents of any open buffers in Neovim to the chat buffer. The command has native, _Telescope_, _mini.pick_, _fzf.lua_ and _snacks.nvim_ providers available. Also, multiple buffers can be selected and added to the chat buffer as per the video above.
 
 ## /fetch
@@ -23,11 +26,31 @@ The _fetch_ slash command allows you to add the contents of a URL to the chat bu
 
 ## /file
 
-The _file_ slash command allows you to add the contents of a file in the current working directory to the chat buffer. The command has native, _Telescope_, _mini.pick_, _fzf.lua_ and _snacks.nvim_ providers available. Also, multiple files can be selected and added to the chat buffer.
+<p>
+  <video controls muted src="https://github.com/user-attachments/assets/3359c752-e5e0-41bf-8952-557edf11efdf"></video>
+</p>
+
+The _file_ slash command allows you to add the contents of a file in the current working directory to the chat buffer. The command has native, _Telescope_, _mini.pick_, _fzf.lua_ and _snacks.nvim_ providers available. Also, multiple files can be selected and added to the chat buffer:
+
+- Select a single file: `⏎ enter`
+- Select multiple files: `⇥ tab`
+
+Please note that these mappings may be different depending on your provider.
+
+## /quickfix
+
+The `quickfix` slash command adds entries from the Neovim quickfix list to the chat buffer.
+
+- For search patterns or file entries, the whole file is shared.
+- For diagnostics, the context of the function/method/class is shared if possible; otherwise, 10 lines around the diagnostic are included.
 
 ## /help
 
 The _help_ slash command allows you to add content from a vim help file (`:h helpfile`), to the chat buffer, by searching for help tags. Currently this is only available for _Telescope_, _mini.pick_, _fzf_lua_ and _snacks.nvim_ providers. By default, the slash command will prompt you to trim a help file that is over 1,000 lines in length.
+
+## /image
+
+The _image_ slash command allows you to add images into a chat buffer via remote URLs and through your file system. In the config for the slash command, you can specify a group of directories (with `opts.dirs`) that the image picker will always search in, alongside the current working directory. Currently the image picker is only available with _snacks.nvim_ and the `vim.ui.select`.
 
 ## /now
 
@@ -51,6 +74,6 @@ The _terminal_ slash command shares the latest output from the last terminal buf
 
 The _workspace_ slash command allows users to share defined groups of files and/or symbols with an LLM, alongside some pre-written context. The slash command uses a [codecompanion-workspace.json](https://github.com/olimorris/codecompanion.nvim/blob/main/codecompanion-workspace.json) file, stored in the current working directory, to house this context. It is, in essence, a context management system for your repository.
 
-Whilst LLMs are incredibly powerful, they have no knowledge of the architectural decisions yourself or your team have made on a project. They have no context as to why you've selected the dependencies that you have. And, they can't see how your codebase has evolved over time.
+Whilst LLMs are incredibly powerful, they have no knowledge of the architectural decisions yourself or your team have made on a project. They have no context as to why you've selected the dependencies that you have. And, they can't see how your codebase has evolved over time. To help you create your own workspace file, leverage the [workspace file](/usage/action-palette.html#default-prompts) prompt in the action palette and install the amazing [VectorCode](https://github.com/Davidyz/VectorCode/tree/main) tool.
 
 Please see the [Creating Workspaces](/extending/workspace) guide to learn how to build your own.

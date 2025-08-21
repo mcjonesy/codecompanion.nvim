@@ -1,4 +1,4 @@
-*codecompanion.txt*       For NVIM v0.10.0       Last change: 2025 February 11
+*codecompanion.txt*         For NVIM v0.11         Last change: 2025 August 14
 
 ==============================================================================
 Table of Contents                            *codecompanion-table-of-contents*
@@ -9,6 +9,8 @@ Table of Contents                            *codecompanion-table-of-contents*
 2. Installation                                   |codecompanion-installation|
   - Requirements                     |codecompanion-installation-requirements|
   - Installation                     |codecompanion-installation-installation|
+  - Installing Extensions   |codecompanion-installation-installing-extensions|
+  - Additional s                     |codecompanion-installation-additional-s|
   - Completion                         |codecompanion-installation-completion|
   - Help                                     |codecompanion-installation-help|
 3. Getting Started                             |codecompanion-getting-started|
@@ -27,12 +29,13 @@ Table of Contents                            *codecompanion-table-of-contents*
   - Inline Assistant            |codecompanion-configuration-inline-assistant|
   - Prompt Library                |codecompanion-configuration-prompt-library|
   - System Prompt                  |codecompanion-configuration-system-prompt|
+  - Extensions                        |codecompanion-configuration-extensions|
   - Other Options                  |codecompanion-configuration-other-options|
 5. Usage                                                 |codecompanion-usage|
   - General                                      |codecompanion-usage-general|
   - Action Palette                        |codecompanion-usage-action-palette|
   - Chat Buffer                              |codecompanion-usage-chat-buffer|
-  - Agents and Tools                    |codecompanion-usage-agents-and-tools|
+  - Tools                                          |codecompanion-usage-tools|
   - Slash Commands                        |codecompanion-usage-slash-commands|
   - Variables                                  |codecompanion-usage-variables|
   - Events / Hooks                        |codecompanion-usage-events-/-hooks|
@@ -45,12 +48,13 @@ Table of Contents                            *codecompanion-table-of-contents*
   - Creating Tools                    |codecompanion-extending-creating-tools|
   - Creating Workflows            |codecompanion-extending-creating-workflows|
   - Creating Workspaces          |codecompanion-extending-creating-workspaces|
+  - Creating Extensions          |codecompanion-extending-creating-extensions|
 
 ==============================================================================
 1. Welcome                                             *codecompanion-welcome*
 
 
-  AI-powered coding, seamlessly in `Neovim`
+  AI Coding, Vim Style
 CodeCompanion is a productivity tool which streamlines how you develop with
 LLMs, in Neovim.
 
@@ -58,12 +62,14 @@ LLMs, in Neovim.
 FEATURES                                      *codecompanion-welcome-features*
 
 -  Copilot Chat <https://github.com/features/copilot> meets Zed AI <https://zed.dev/blog/zed-ai>, in Neovim
--  Support for Anthropic, Copilot, GitHub Models, DeepSeek, Gemini, Ollama, OpenAI, Azure OpenAI, HuggingFace and xAI LLMs (or bring your own!)
--  Inline transformations, code creation and refactoring
--  Variables, Slash Commands, Agents/Tools and Workflows to improve LLM output
--  Built in prompt library for common tasks like advice on LSP errors and code explanations
--  Create your own custom prompts, Variables and Slash Commands
--  Have multiple chats open at the same time
+-  Support for Anthropic, Copilot, GitHub Models, DeepSeek, Gemini, Mistral AI, Novita, Ollama, OpenAI, Azure OpenAI, HuggingFace and xAI LLMs out of the box (or bring your own!)
+-  User contributed and supported |codecompanion-configuration-adapters-community-adapters|
+-  |codecompanion-usage-inline-assistant.html|, code creation and refactoring
+-  |codecompanion-usage-chat-buffer-variables|, |codecompanion-usage-chat-buffer-slash-commands|, |codecompanion-usage-chat-buffer-tools| and |codecompanion-usage-workflows| to improve LLM output
+-  Built in |codecompanion-usage-action-palette.html| for common tasks like advice on LSP errors and code explanations
+-  Create your own |codecompanion-extending-prompts|, Variables and Slash Commands
+-  Have |codecompanion-usage-introduction-quickly-accessing-a-chat-buffer| open at the same time
+-  Support for |codecompanion-usage-chat-buffer--images-vision| as input
 -  Async execution for fast performance
 
 
@@ -78,12 +84,14 @@ of the box, the plugin supports:
 - DeepSeek (`deepseek`) - Requires an API key
 - Gemini (`gemini`) - Requires an API key
 - HuggingFace (`huggingface`) - Requires an API key
+- Mistral AI (`mistral`) - Requires an API key
+- Novita (`novita`) - Requires an API key
 - Ollama (`ollama`) - Both local and remotely hosted
 - OpenAI (`openai`) - Requires an API key
 - Azure OpenAI (`azure_openai`) - Requires an Azure OpenAI service with a model deployment
 - xAI (`xai`) - Requires an API key
 
-The plugin utilises objects called Strategies. These are the different ways
+The plugin utilises objects called `strategies`. These are the different ways
 that a user can interact with the plugin. The `chat` strategy harnesses a
 buffer to allow direct conversation with the LLM. The `inline` strategy allows
 for output from the LLM to be written directly into a pre-existing Neovim
@@ -97,14 +105,16 @@ The plugin allows you to specify adapters for each strategy and also for each
 2. Installation                                   *codecompanion-installation*
 
 
-  [!IMPORTANT] The plugin requires the markdown Tree-sitter parser to be
-  installed with `:TSInstall markdown`
+  [!IMPORTANT] The plugin requires the markdown and markdown_inline Tree-sitter
+  parsers to be installed with `:TSInstall markdown markdown_inline`
 
 REQUIREMENTS                         *codecompanion-installation-requirements*
 
 - The `curl` library
-- Neovim 0.10.0 or greater
+- Neovim 0.11.0 or greater
 - `(Optional)` An API key for your chosen LLM
+- `(Optional)` The `base64` library for image/vision support
+- `(Optional)` The ripgrep <https://github.com/BurntSushi/ripgrep> library for the `grep_search` tool
 
 
 INSTALLATION                         *codecompanion-installation-installation*
@@ -117,6 +127,7 @@ LAZY.NVIM ~
 >lua
     {
       "olimorris/codecompanion.nvim",
+      opts = {},
       dependencies = {
         "nvim-lua/plenary.nvim",
         "nvim-treesitter/nvim-treesitter",
@@ -130,6 +141,9 @@ PACKER ~
 >lua
     use({
       "olimorris/codecompanion.nvim",
+      config = function()
+        require("codecompanion").setup()
+      end,
       requires = {
         "nvim-lua/plenary.nvim",
         "nvim-treesitter/nvim-treesitter",
@@ -142,12 +156,16 @@ VIM-PLUG ~
 
 >vim
     call plug#begin()
-    
+
     Plug 'nvim-lua/plenary.nvim'
     Plug 'nvim-treesitter/nvim-treesitter'
     Plug 'olimorris/codecompanion.nvim'
-    
+
     call plug#end()
+
+    lua << EOF
+      require("codecompanion").setup()
+    EOF
 <
 
 **Pinned plugins**
@@ -161,12 +179,139 @@ follow the master branch:
 <
 
 
+INSTALLING EXTENSIONS       *codecompanion-installation-installing-extensions*
+
+CodeCompanion supports extensions that add additional functionality to the
+plugin. Below is an example which installs and configures mcphub.nvim
+<https://github.com/ravitemer/mcphub.nvim>:
+
+1. Install with:
+
+>lua
+    {
+      "olimorris/codecompanion.nvim",
+      dependencies = {
+        "ravitemer/mcphub.nvim"
+      }
+    }
+<
+
+1. Configure with additional options:
+
+>lua
+    require("codecompanion").setup({
+      extensions = {
+        mcphub = {
+          callback = "mcphub.extensions.codecompanion",
+          opts = {
+            make_vars = true,
+            make_slash_commands = true,
+            show_result_in_chat = true
+          }
+        }
+      }
+    })
+<
+
+Visit the |codecompanion-extending-extensions| to learn more about available
+extensions and how to create your own.
+
+
+ADDITIONAL S                         *codecompanion-installation-additional-s*
+
+CodeCompanion integrates with a number of other plugins to make your AI coding
+experience more enjoyable. Below are some common lazy.nvim configurations for
+popular plugins:
+
+
+RENDER-MARKDOWN.NVIM ~
+
+Use render-markdown.nvim
+<https://github.com/MeanderingProgrammer/render-markdown.nvim> to render the
+markdown in the chat buffer:
+
+>lua
+    {
+      "MeanderingProgrammer/render-markdown.nvim",
+      ft = { "markdown", "codecompanion" }
+    },
+<
+
+
+MARKVIEW.NVIM ~
+
+Use markview.nvim <https://github.com/OXY2DEV/markview.nvim> to render the
+markdown in the chat buffer:
+
+>lua
+    {
+      "OXY2DEV/markview.nvim",
+      lazy = false,
+      opts = {
+        preview = {
+          filetypes = { "markdown", "codecompanion" },
+          ignore_buftypes = {},
+        },
+      },
+    },
+<
+
+You can also conceal the tags used in chat buffers, see HTML options
+<https://github.com/OXY2DEV/markview.nvim/wiki/HTML#container_elements> and
+this discussion
+<https://github.com/olimorris/codecompanion.nvim/discussions/1638> for
+examples.
+
+
+MINI.DIFF ~
+
+Use mini.diff <https://github.com/echasnovski/mini.diff> for a cleaner diff
+when using the inline assistant or the `@insert_edit_into_file` tool:
+
+>lua
+    {
+      "echasnovski/mini.diff",
+      config = function()
+        local diff = require("mini.diff")
+        diff.setup({
+          -- Disabled by default
+          source = diff.gen_source.none(),
+        })
+      end,
+    },
+<
+
+
+IMG-CLIP.NVIM ~
+
+Use img-clip.nvim <https://github.com/hakonharnes/img-clip.nvim> to copy images
+from your system clipboard into a chat buffer via `:PasteImage`:
+
+>lua
+    {
+      "HakonHarnes/img-clip.nvim",
+      opts = {
+        filetypes = {
+          codecompanion = {
+            prompt_for_file_name = false,
+            template = "[Image]($FILE_PATH)",
+            use_absolute_path = true,
+          },
+        },
+      },
+    },
+<
+
+
 COMPLETION                             *codecompanion-installation-completion*
 
-Out of the box, the plugin supports completion with both nvim-cmp
-<https://github.com/hrsh7th/nvim-cmp> and blink.cmp
-<https://github.com/Saghen/blink.cmp>. For the latter, on version <= 0.10.0,
-ensure that you’ve added `codecompanion` as a source:
+When in the |codecompanion-usage-chat-buffer-index|, completion can be used to
+more easily add |codecompanion-usage-chat-buffer-variables|,
+|codecompanion-usage-chat-buffer-slash-commands| and
+|codecompanion-usage-chat-buffer-tools|. Out of the box, the plugin supports
+completion with both nvim-cmp <https://github.com/hrsh7th/nvim-cmp> and
+blink.cmp <https://github.com/Saghen/blink.cmp>. For the latter, on version <=
+0.10.0, ensure that you’ve added `codecompanion` as a source:
 
 >lua
     sources = {
@@ -176,7 +321,8 @@ ensure that you’ve added `codecompanion` as a source:
     },
 <
 
-The plugin also supports |codecompanion-usage-chat-buffer-index-completion|.
+The plugin also supports |codecompanion-usage-chat-buffer-index-completion| and
+coc.nvim <https://github.com/neoclide/coc.nvim>.
 
 
 HELP                                         *codecompanion-installation-help*
@@ -191,12 +337,24 @@ troubleshoot, running it with `nvim --clean -u minimal.lua`.
 ==============================================================================
 3. Getting Started                             *codecompanion-getting-started*
 
+Please see the author’s own config
+<https://github.com/olimorris/dotfiles/blob/main/.config/nvim/lua/plugins/coding.lua>
+for a complete reference of how to setup the plugin.
+
+
+  [!IMPORTANT] The default adapter in CodeCompanion is GitHub Copilot
+  <https://docs.github.com/en/copilot/using-github-copilot/copilot-chat/asking-github-copilot-questions-in-your-ide>.
+  If you have copilot.vim <https://github.com/github/copilot.vim> or copilot.lua
+  <https://github.com/zbirenbaum/copilot.lua> installed then expect CodeCompanion
+  to work out of the box.
 
 WITH AN ADAPTER                *codecompanion-getting-started-with-an-adapter*
 
 
   [!NOTE] The adapters that the plugin supports out of the box can be found here
-  <https://github.com/olimorris/codecompanion.nvim/tree/main/lua/codecompanion/adapters>
+  <https://github.com/olimorris/codecompanion.nvim/tree/main/lua/codecompanion/adapters>.
+  Or, see the user contributed adapters
+  |codecompanion-configuration-adapters.html-community-adapters|
 An adapter is what connects Neovim to an LLM. It’s the interface that allows
 data to be sent, received and processed. In order to use the plugin, you need
 to make sure you’ve configured an adapter first:
@@ -215,7 +373,9 @@ to make sure you’ve configured an adapter first:
 <
 
 In the example above, we’re using the Anthropic adapter for both the chat and
-inline strategies.
+inline strategies. Refer to the
+|codecompanion-configuration-adapters-changing-a-model| section to understand
+how to change the default model.
 
 Because most LLMs require an API key you’ll need to share that with the
 adapter. By default, adapters will look in your environment for a `*_API_KEY`
@@ -274,71 +434,61 @@ You can add context from your code base by using `Variables` and `Slash
 Commands` in the chat buffer.
 
 
+  [!IMPORTANT] As of `v17.5.0`, variables and tools are now wrapped in curly
+  braces, such as `#{buffer}` or `@{files}`
+
 VARIABLES ~
 
-`Variables`, accessed via `#`, contain data about the present state of Neovim:
+`Variables`, accessed via `#`, contain data about the present state of Neovim.
+You can find a list of available variables,
+|codecompanion-usage-chat-buffer-variables.html|.
 
-- `#buffer` - Shares the current buffer’s code. This can also receive |codecompanion-usage-chat-buffer-variables-buffer|
-- `#lsp` - Shares LSP information and code for the current buffer
-- `#viewport` - Shares the buffers and lines that you see in the Neovim viewport
 
+  [!TIP] Use them in your prompt like: `What does the code in #{buffer} do?`
 
 SLASH COMMANDS ~
 
 
   [!IMPORTANT] These have been designed to work with native Neovim completions
   alongside nvim-cmp and blink.cmp. To open the native completion menu use
-  `<C-_>` in insert mode when in the chat buffer.
+  `<C-_>` in insert mode when in the chat buffer. Note: Slash commands should
+  also work with coc.nvim.
 `Slash commands`, accessed via `/`, run commands to insert additional context
-into the chat buffer:
-
-- `/buffer` - Insert open buffers
-- `/fetch` - Insert URL contents
-- `/file` - Insert a file
-- `/help` - Insert content from help tags
-- `/now` - Insert the current date and time
-- `/symbols` - Insert symbols from a selected file
-- `/terminal` - Insert terminal output
+into the chat buffer. You can find a list of available commands as well as how
+to use them, |codecompanion-usage-chat-buffer-slash-commands.html|.
 
 
-AGENTS / TOOLS ~
+TOOLS ~
 
-`Tools`, accessed via `@`, allow the LLM to function as an agent and carry out
-actions:
+`Tools`, accessed via `@`, allow the LLM to function as an agent and leverage
+external tools. You can find a list of available tools as well as how to use
+them, |codecompanion-usage-chat-buffer-tools.html-available-tools|.
 
-- `@cmd_runner` - The LLM will run shell commands (subject to approval)
-- `@editor` - The LLM will edit code in a Neovim buffer
-- `@files` - The LLM will can work with files on the file system (subject to approval)
-- `@rag` - The LLM will browse and search the internet for real-time information to supplement its response
 
-Tools can also be grouped together to form `Agents`, which are also accessed
-via `@` in the chat buffer:
-
-- `@full_stack_dev` - Contains the `cmd_runner`, `editor` and `files` tools.
-
+  [!TIP] Use them in your prompt like: `Can you use the @{grep_search} tool to
+  find occurrences of "add_message"`
 
 INLINE ASSISTANT              *codecompanion-getting-started-inline-assistant*
 
 
   [!NOTE] The diff provider in the video is mini.diff
   <https://github.com/echasnovski/mini.diff>
-The Inline Assistant enables an LLM to write code directly into a Neovim
+The inline assistant enables an LLM to write code directly into a Neovim
 buffer.
 
-Run `:CodeCompanion <your prompt>` to call the Inline Assistant. The Assistant
+Run `:CodeCompanion your prompt` to call the inline assistant. The assistant
 will evaluate the prompt and either write code or open a chat buffer. You can
-also make a visual selection and call the Assistant.
+also make a visual selection and call the assistant. To send additional context
+alongside your prompt, you can leverage
+|codecompanion-usage-inline-assistant-variables| such as `:CodeCompanion
+#{buffer} <your prompt>`.
 
-The Assistant has knowledge of your last conversation from a chat buffer. A
-prompt such as `:CodeCompanion add the new function here` will see the
-Assistant add a code block directly into the current buffer.
+For convenience, you can call prompts with their `short_name` from the prompt
+library
+<https://github.com/olimorris/codecompanion.nvim/blob/6a4341a4cfe8988a57ad9e8b7dc01ccd6f3e1628/lua/codecompanion/config.lua#L565>
+such as `:'<,'>CodeCompanion /explain`. The prompt library comes with the
+following defaults:
 
-For convenience, you can call prompts from the
-|codecompanion-configuration-prompt-library| via the Assistant such as
-`:'<,'>CodeCompanion /buffer what does this file do?`. The prompt library comes
-with the following defaults:
-
-- `/buffer` - Send the current buffer to the LLM alongside a prompt
 - `/commit` - Generate a commit message
 - `/explain` - Explain how selected code in a buffer works
 - `/fix` - Fix the selected code
@@ -355,11 +505,13 @@ Use CodeCompanion to create Neovim commands in command-line mode
 ACTION PALETTE                  *codecompanion-getting-started-action-palette*
 
 Run `:CodeCompanionActions` to open the action palette, which gives you access
-to all functionality of the plugin. By default the plugin uses `vim.ui.select`,
-however, you can change the provider by altering the
-`display.action_palette.provider` config value to be `telescope` or
-`mini_pick`. You can also call the Telescope extension with `:Telescope
-codecompanion`.
+to the plugin’s features, including your prompts from the
+|codecompanion-configuration-prompt-library|.
+
+By default the plugin uses `vim.ui.select`, however, you can change the
+provider by altering the `display.action_palette.provider` config value to be
+`telescope`, `mini_pick` or `snacks`. You can also call the Telescope extension
+with `:Telescope codecompanion`.
 
 
   [!NOTE] Some actions and prompts will only be visible if you’re in `Visual
@@ -367,21 +519,23 @@ codecompanion`.
 
 LIST OF COMMANDS              *codecompanion-getting-started-list-of-commands*
 
-The plugin has three core commands:
+The plugin has four core commands:
 
 - `CodeCompanion` - Open the inline assistant
 - `CodeCompanionChat` - Open a chat buffer
-- `CodeCompanionCmd` - Generate a command in the command-liine
+- `CodeCompanionCmd` - Generate a command in the command-line
 - `CodeCompanionActions` - Open the `Action Palette`
 
 However, there are multiple options available:
 
-- `CodeCompanion <your prompt>` - Prompt the inline assistant
-- `CodeCompanion /<prompt library>` - Use the |codecompanion-configuration-prompt-library| with the inline assistant e.g. `/commit`
+- `CodeCompanion <prompt>` - Prompt the inline assistant
+- `CodeCompanion <adapter> <prompt>` - Prompt the inline assistant with a specific adapter
+- `CodeCompanion /<prompt library>` - Call an item from the |codecompanion-configuration-prompt-library|
 - `CodeCompanionChat <prompt>` - Send a prompt to the LLM via a chat buffer
 - `CodeCompanionChat <adapter>` - Open a chat buffer with a specific adapter
-- `CodeCompanionChat Toggle` - Toggle a chat buffer
 - `CodeCompanionChat Add` - Add visually selected chat to the current chat buffer
+- `CodeCompanionChat RefreshCache` - Used to refresh conditional elements in the chat buffer
+- `CodeCompanionChat Toggle` - Toggle a chat buffer
 
 
 SUGGESTED WORKFLOW          *codecompanion-getting-started-suggested-workflow*
@@ -392,7 +546,7 @@ For an optimum plugin workflow, I recommend the following:
     vim.keymap.set({ "n", "v" }, "<C-a>", "<cmd>CodeCompanionActions<cr>", { noremap = true, silent = true })
     vim.keymap.set({ "n", "v" }, "<LocalLeader>a", "<cmd>CodeCompanionChat Toggle<cr>", { noremap = true, silent = true })
     vim.keymap.set("v", "ga", "<cmd>CodeCompanionChat Add<cr>", { noremap = true, silent = true })
-    
+
     -- Expand 'cc' into 'CodeCompanion' in the command line
     vim.cmd([[cab cc CodeCompanion]])
 <
@@ -451,8 +605,10 @@ LAYOUT ~
 
 
   [!NOTE] The Action Palette also supports Telescope.nvim
-  <https://github.com/nvim-telescope/telescope.nvim> and mini.pick
-  <https://github.com/echasnovski/mini.pick>
+  <https://github.com/nvim-telescope/telescope.nvim>, fzf_lua
+  <https://github.com/ibhagwan/fzf-lua>, mini.pick
+  <https://github.com/echasnovski/mini.pick> and snacks.nvim
+  <https://github.com/folke/snacks.nvim>
 You can change the appearance of the chat buffer by changing the
 `display.action_palette` table in your configuration:
 
@@ -463,10 +619,11 @@ You can change the appearance of the chat buffer by changing the
           width = 95,
           height = 10,
           prompt = "Prompt ", -- Prompt used for interactive LLM calls
-          provider = "default", -- default|telescope|mini_pick
+          provider = "default", -- Can be "default", "telescope", "fzf_lua", "mini_pick" or "snacks". If not specified, the plugin will autodetect installed providers.
           opts = {
             show_default_actions = true, -- Show the default actions in the action palette?
             show_default_prompt_library = true, -- Show the default prompt library in the action palette?
+            title = "CodeCompanion actions", -- The title of the action palette
           },
         },
       },
@@ -477,10 +634,10 @@ You can change the appearance of the chat buffer by changing the
 ADAPTERS                                *codecompanion-configuration-adapters*
 
 
-  [!NOTE] The adapters that the plugin supports out of the box can be found here
-  <https://github.com/olimorris/codecompanion.nvim/tree/main/lua/codecompanion/adapters>.
-  It is recommended that you review them so you better understand the settings
-  that can be customized
+  [!TIP] Want to connect to an LLM that isn’t supported out of the box? Check
+  out |codecompanion--community-adapters| user contributed adapters,
+  |codecompanion-extending-adapters.html| your own or post in the discussions
+  <https://github.com/olimorris/codecompanion.nvim/discussions>
 An adapter is what connects Neovim to an LLM. It’s the interface that allows
 data to be sent, received and processed and there are a multitude of ways to
 customize them.
@@ -499,6 +656,9 @@ You can change the default adapter as follows:
         inline = {
           adapter = "copilot",
         },
+        cmd = {
+          adapter = "deepseek",
+        }
       },
     }),
 <
@@ -542,6 +702,47 @@ If you do not want to store secrets in plain text, prefix commands with `cmd:`:
   [!NOTE] In this example, we’re using the 1Password CLI to extract the OpenAI
   API Key. You could also use gpg as outlined here
   <https://github.com/olimorris/codecompanion.nvim/discussions/601>
+Environment variables can also be functions and as a parameter, they receive a
+copy of the adapter itself.
+
+
+CHANGING A MODEL ~
+
+To more easily change a model associated with a strategy you can pass in the
+`name` and `model` to the adapter:
+
+>lua
+    require("codecompanion").setup({
+      strategies = {
+        chat = {
+          adapter = {
+            name = "copilot",
+            model = "claude-sonnet-4-20250514",
+          },
+        },
+      },
+    }),
+<
+
+To change the default model on an adapter you can modify the
+`schema.model.default` property:
+
+>lua
+    require("codecompanion").setup({
+      adapters = {
+        openai = function()
+          return require("codecompanion.adapters").extend("openai", {
+            schema = {
+              model = {
+                default = "gpt-4.1",
+              },
+            },
+          })
+        end,
+      },
+    }),
+<
+
 
 ADAPTER SETTINGS ~
 
@@ -551,19 +752,34 @@ adapter, these sit within a schema table and can be configured during setup:
 >lua
     require("codecompanion").setup({
       adapters = {
-        llama3 = function()
+        qwen3 = function()
           return require("codecompanion.adapters").extend("ollama", {
-            name = "llama3", -- Give this adapter a different name to differentiate it from the default ollama adapter
+            name = "qwen3", -- Give this adapter a different name to differentiate it from the default ollama adapter
+            opts = {
+              vision = true,
+              stream = true,
+            },
             schema = {
               model = {
-                default = "llama3:latest",
+                default = "qwen3:latest",
               },
               num_ctx = {
                 default = 16384,
               },
-              num_predict = {
-                default = -1,
+              think = {
+                default = false,
+                -- or, if you want to automatically turn on `think` for certain models:
+                default = function(adapter)
+                  -- this'll set `think` to true if the model name contain `qwen3` or `deepseek-r1`
+                  local model_name = adapter.model.name:lower()
+                  return vim.iter({ "qwen3", "deepseek-r1" }):any(function(kw)
+                    return string.find(model_name, kw) ~= nil
+                  end)
+                end,
               },
+              keep_alive = {
+                default = '5m',
+              }
             },
           })
         end,
@@ -606,45 +822,41 @@ A proxy can be configured by utilising the `adapters.opts` table in the config:
 <
 
 
-CHANGING A MODEL ~
+COMMUNITY ADAPTERS ~
 
-Many adapters allow model selection via the `schema.model.default` property:
+Thanks to the community for building the following adapters:
 
->lua
-    require("codecompanion").setup({
-      adapters = {
-        openai = function()
-          return require("codecompanion.adapters").extend("openai", {
-            schema = {
-              model = {
-                default = "gpt-4",
-              },
-            },
-          })
-        end,
-      },
-    }),
-<
+- Venice.ai <https://github.com/olimorris/codecompanion.nvim/discussions/972>
+- Fireworks.ai <https://github.com/olimorris/codecompanion.nvim/discussions/693>
+- OpenRouter <https://github.com/olimorris/codecompanion.nvim/discussions/1013>
+
+The section of the discussion forums which is dedicated to user created
+adapters can be found here
+<https://github.com/olimorris/codecompanion.nvim/discussions?discussions_q=is%3Aopen+label%3A%22tip%3A+adapter%22>.
+Use these individual threads as a place to raise issues and ask questions about
+your specific adapters.
 
 
 EXAMPLE: USING OPENAI COMPATIBLE MODELS ~
 
-To use any other OpenAI compatible models, change the URL in the env table, set
-an API key and define the schema:
+If your LLM states that it is `“OpenAI compatible”`, then you can leverage
+the `openai_compatible` adapter, modifying some elements such as the URL in the
+env table, the API key and altering the schema:
 
-Note: The schema in this instance is provided only as an example and must be modified
-according to the requirements of the model you are using.
-The options are chosen to show how to use different types.
 
+  [!NOTE] The schema in this instance is provided only as an example and must be
+  modified according to the requirements of the model you use. The options are
+  chosen to show how to use different types of parameters.
 >lua
     require("codecompanion").setup({
       adapters = {
-        ollama = function()
+        my_openai = function()
           return require("codecompanion.adapters").extend("openai_compatible", {
             env = {
               url = "http[s]://open_compatible_ai_url", -- optional: default value is ollama url http://127.0.0.1:11434
               api_key = "OpenAI_API_KEY", -- optional: if your endpoint is authenticated
               chat_url = "/v1/chat/completions", -- optional: default value, override if different
+              models_endpoint = "/v1/models", -- optional: attaches to the end of the URL to form the endpoint to retrieve models
             },
             schema = {
               model = {
@@ -770,17 +982,66 @@ the plugin:
 <
 
 
+HIDING DEFAULT ADAPTERS ~
+
+By default, the plugin shows all available adapters, including the defaults. If
+you prefer to only display the adapters defined in your user configuration, you
+can set the `show_defaults` option to `false`:
+
+>lua
+    require("codecompanion").setup({
+      adapters = {
+        opts = {
+          show_defaults = false,
+        },
+        -- Define your custom adapters here
+      },
+    })
+<
+
+
+CONTROLLING MODEL CHOICES ~
+
+When switching between adapters, the plugin typically displays all available
+model choices for the selected adapter. If you want to simplify the interface
+and have the default model automatically chosen (without showing any model
+selection UI), you can set the `show_model_choices` option to `false`:
+
+>lua
+    require("codecompanion").setup({
+      adapters = {
+        opts = {
+          show_model_choices = false,
+        },
+        -- Define your custom adapters here
+      },
+    })
+<
+
+With `show_model_choices = false`, the default model (as defined in the
+adapter’s schema) will be automatically selected when changing adapters, and
+no model selection will be shown to the user.
+
+
 CHAT BUFFER                          *codecompanion-configuration-chat-buffer*
 
 By default, CodeCompanion provides a "chat" strategy that uses a dedicated
 Neovim buffer for conversational interaction with your chosen LLM. This buffer
 can be customized according to your preferences.
 
+Please refer to the config.lua
+<https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/config.lua#L42-L392>
+file for a full list of all configuration options.
+
 
 KEYMAPS ~
 
-You can define or override the default keymaps to send messages, regenerate
-responses, close the buffer, etc. Example:
+
+  [!NOTE] The plugin scopes CodeCompanion specific keymaps to the `chat buffer`
+  only.
+You can define or override the default keymaps
+<https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/config.lua#L178>
+to send messages, regenerate responses, close the buffer, etc. Example:
 
 >lua
     require("codecompanion").setup({
@@ -789,9 +1050,11 @@ responses, close the buffer, etc. Example:
           keymaps = {
             send = {
               modes = { n = "<C-s>", i = "<C-s>" },
+              opts = {},
             },
             close = {
               modes = { n = "<C-c>", i = "<C-c>" },
+              opts = {},
             },
             -- Add further custom keymaps here
           },
@@ -801,15 +1064,18 @@ responses, close the buffer, etc. Example:
 <
 
 The keymaps are mapped to `<C-s>` for sending a message and `<C-c>` for closing
-in both normal and insert modes.
+in both normal and insert modes. To set other `:map-arguments`, you can use the
+optional `opts` table which will be fed to `vim.keymap.set`.
 
 
 VARIABLES ~
 
-Variables are placeholders inserted into the chat buffer (using `#`). They
-provide contextual code or information about the current Neovim state. For
-instance, the built-in `#buffer` variable sends the current buffer’s contents
-to the LLM.
+Variables
+<https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/config.lua#L90>
+are placeholders inserted into the chat buffer (using `#`). They provide
+contextual code or information about the current Neovim state. For instance,
+the built-in `#buffer` variable sends the current buffer’s contents to the
+LLM.
 
 You can even define your own variables to share specific content:
 
@@ -819,12 +1085,36 @@ You can even define your own variables to share specific content:
         chat = {
           variables = {
             ["my_var"] = {
-              callback = function()
-                return "Your custom content here."
-              end,
+              ---Ensure the file matches the CodeCompanion.Variable class
+              ---@return string|fun(): nil
+              callback = "/Users/Oli/Code/my_var.lua",
               description = "Explain what my_var does",
               opts = {
                 contains_code = false,
+                --has_params = true,    -- Set this if your variable supports parameters
+                --default_params = nil, -- Set default parameters
+              },
+            },
+          },
+        },
+      },
+    })
+<
+
+
+PINNING AND WATCHING
+
+To |codecompanion-usage-chat-buffer-variables-with-parameters| buffers by
+default, you can add this configuration:
+
+>lua
+    require("codecompanion").setup({
+      strategies = {
+        chat = {
+          variables = {
+            ["buffer"] = {
+              opts = {
+                default_params = 'pin', -- or 'watch'
               },
             },
           },
@@ -836,12 +1126,22 @@ You can even define your own variables to share specific content:
 
 SLASH COMMANDS ~
 
-Slash Commands (invoked with `/`) let you dynamically insert context into the
-chat buffer, such as file contents or date/time.
+Slash Commands
+<https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/config.lua#L114>
+(invoked with `/`) let you dynamically insert context into the chat buffer,
+such as file contents or date/time.
 
-The plugin supports providers like `telescope`, `mini_pick`, `fzf_lua` and
-`snacks` (as in snacks.nvim). Please see the
-|codecompanion-usage-chat-buffer-index| usage section for full details:
+The plugin supports providers like telescope
+<https://github.com/nvim-telescope/telescope.nvim>, mini_pick
+<https://github.com/echasnovski/mini.pick>, fzf_lua
+<https://github.com/ibhagwan/fzf-lua> and snacks.nvim
+<https://github.com/folke/snacks.nvim>. By default, the plugin will
+automatically detect if you have any of those plugins installed and duly set
+them as the default provider. Failing that, the in-built `default` provider
+will be used. Please see the |codecompanion-usage-chat-buffer-index| usage
+section for information on how to use Slash Commands.
+
+You can configure Slash Commands with:
 
 >lua
     require("codecompanion").setup({
@@ -853,7 +1153,7 @@ The plugin supports providers like `telescope`, `mini_pick`, `fzf_lua` and
               callback = "strategies.chat.slash_commands.file",
               description = "Select a file using Telescope",
               opts = {
-                provider = "telescope", -- Other options include 'default', 'mini_pick', 'fzf_lua', snacks
+                provider = "telescope", -- Can be "default", "telescope", "fzf_lua", "mini_pick" or "snacks"
                 contains_code = true,
               },
             },
@@ -863,6 +1163,11 @@ The plugin supports providers like `telescope`, `mini_pick`, `fzf_lua` and
     })
 <
 
+
+  [!IMPORTANT] Each slash command may have their own unique configuration so be
+  sure to check out the config.lua
+  <https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/config.lua>
+  file
 You can also add your own slash commands:
 
 >lua
@@ -870,12 +1175,53 @@ You can also add your own slash commands:
       strategies = {
         chat = {
           slash_commands = {
-            ["mycmd"] = {
-              description = "My fancy new command",
+            ["git_files"] = {
+              description = "List git files",
               ---@param chat CodeCompanion.Chat
               callback = function(chat)
-                return chat:add_buf_message({ content = "Just writing to the chat buffer" })
+                local handle = io.popen("git ls-files")
+                if handle ~= nil then
+                  local result = handle:read("*a")
+                  handle:close()
+                  chat:add_context({ role = "user", content = result }, "git", "<git_files>")
+                else
+                  return vim.notify("No git files available", vim.log.levels.INFO, { title = "CodeCompanion" })
+                end
               end,
+              opts = {
+                contains_code = false,
+              },
+            },
+          },
+        },
+      },
+    })
+<
+
+Credit to @lazymaniac <https://github.com/lazymaniac> for the inspiration
+<https://github.com/olimorris/codecompanion.nvim/discussions/958>.
+
+
+  [!NOTE] You can also point the callback to a lua file that resides within your
+  own configuration
+
+KEYMAPS
+
+Slash Commands can also be called via keymaps, in the chat buffer. Simply add a
+`keymaps` table to the Slash Command you’d like to call. For example:
+
+>lua
+    require("codecompanion").setup({
+      strategies = {
+        chat = {
+          slash_commands = {
+            ["buffer"] = {
+              keymaps = {
+                modes = {
+                  i = "<C-b>",
+                  n = { "<C-b>", "gb" },
+                },
+              },
             },
           },
         },
@@ -884,37 +1230,36 @@ You can also add your own slash commands:
 <
 
 
-  [!NOTE] You can also point the callback to a lua file that resides within your
-  own configuration
+TOOLS ~
 
-AGENTS AND TOOLS ~
-
-Tools perform specific tasks (e.g., running shell commands, editing buffers,
-etc.) when invoked by an LLM. You can group them into an Agent and both can be
+Tools
+<https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/config.lua#L55>
+perform specific tasks (e.g., running shell commands, editing buffers, etc.)
+when invoked by an LLM. Multiple tools can be grouped together. Both can be
 referenced with `@` when in the chat buffer:
 
 >lua
     require("codecompanion").setup({
       strategies = {
         chat = {
-          agents = {
-            ["my_agent"] = {
-              description = "A custom agent combining tools",
-              system_prompt = "Describe what the agent should do",
-              tools = {
-                "cmd_runner",
-                "editor",
-                -- Add your own tools or reuse existing ones
-              },
-            },
-          },
           tools = {
             ["my_tool"] = {
               description = "Run a custom task",
-              callback = function(command)
-                -- Perform the custom task here
-                return "Tool result"
-              end,
+              callback = require("user.codecompanion.tools.my_tool")
+            },
+            groups = {
+              ["my_group"] = {
+                description = "A custom agent combining tools",
+                system_prompt = "Describe what the agent should do",
+                tools = {
+                  "cmd_runner",
+                  "insert_edit_into_file",
+                  -- Add your own tools or reuse existing ones
+                },
+                opts = {
+                  collapse_tools = true, -- When true, show as a single group reference instead of individual tools
+                },
+              },
             },
           },
         },
@@ -922,14 +1267,152 @@ referenced with `@` when in the chat buffer:
     })
 <
 
-When users introduce the agent `@my_agent` in the chat buffer, it can call the
-tools you listed (like `@my_tool`) to perform tasks on your code.
+When users introduce the group, `my_group`, in the chat buffer, it can call the
+tools you listed (such as `cmd_runner`) to perform tasks on your code.
+
+A tool is a |codecompanion-extending-tools| table with specific keys that
+define the interface and workflow of the tool. The table can be resolved using
+the `callback` option. The `callback` option can be a table itself or either a
+function or a string that points to a luafile that return the table.
+
+
+TOOL CONDITIONALS
+
+Tools can also be conditionally enabled:
+
+>lua
+    require("codecompanion").setup({
+      strategies = {
+        chat = {
+          tools = {
+            ["grep_search"] = {
+              ---@return boolean
+              enabled = function()
+                return vim.fn.executable("rg") == 1
+              end,
+            },
+          }
+        }
+      }
+    })
+<
+
+This is useful to ensure that a particular dependency is installed on the
+machine. After the user has installed the dependency, the `:CodeCompanionChat
+RefreshCache` command can be used to refresh the cache’s across chat buffers.
+
+
+APPROVALS
+
+Some tools, such as |codecompanion-usage-chat-buffer-tools.html-cmd-runner|,
+require the user to approve any commands before they’re executed. This can be
+changed by altering the config for each tool:
+
+>lua
+    require("codecompanion").setup({
+      strategies = {
+        chat = {
+          tools = {
+            ["cmd_runner"] = {
+              opts = {
+                requires_approval = false,
+              },
+            },
+          }
+        }
+      }
+    })
+<
+
+You can also force any tool to require your approval by adding in
+`opts.requires_approval = true`.
+
+
+AUTO SUBMIT TOOL OUTPUT (RECURSION)
+
+When a tool executes, it can be useful to automatically send its output back to
+the LLM. This can be achieved by the following options in your configuration:
+
+>lua
+    require("codecompanion").setup({
+      strategies = {
+        chat = {
+          tools = {
+            opts = {
+              auto_submit_errors = true, -- Send any errors to the LLM automatically?
+              auto_submit_success = true, -- Send any successful output to the LLM automatically?
+            },
+          }
+        }
+      }
+    })
+<
+
+
+AUTOMATICALLY ADD TOOLS TO CHAT
+
+You can configure the plugin to automatically add tools and tool groups to new
+chat buffers:
+
+>lua
+    require("codecompanion").setup({
+      strategies = {
+        chat = {
+          tools = {
+            opts = {
+              default_tools = {
+                "my_tool",
+                "my_tool_group"
+              }
+            },
+          }
+        }
+      }
+    })
+<
+
+This also works for |codecompanion-configuration-extensions|.
+
+
+PROMPT DECORATOR ~
+
+It can be useful to decorate your prompt, prior to sending to an LLM, with
+additional information. For example, the GitHub Copilot prompt in VS Code,
+wraps a user’s prompt between `<prompt></prompt>` tags presumably to
+differentiate the user’s ask from additional context. This can also be
+achieved in CodeCompanion:
+
+>lua
+    require("codecompanion").setup({
+      strategies = {
+        chat = {
+          opts = {
+            ---Decorate the user message before it's sent to the LLM
+            ---@param message string
+            ---@param adapter CodeCompanion.Adapter
+            ---@param context table
+            ---@return string
+            prompt_decorator = function(message, adapter, context)
+              return string.format([[<prompt>%s</prompt>]], message)
+            end,
+          }
+        }
+      }
+    })
+<
+
+The decorator function also has access to the adapter in the chat buffer
+alongside the context
+<https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/utils/context.lua#L121-L137>
+table (which refreshes when a user toggles the chat buffer).
 
 
 LAYOUT ~
 
-You can change the appearance of the chat buffer by changing the
-`display.chat.window` table in your configuration:
+You can change the appearance
+<https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/config.lua#L903>
+of the chat buffer by changing the `display.chat.window` table in your
+configuration:
 
 >lua
     require("codecompanion").setup({
@@ -937,10 +1420,10 @@ You can change the appearance of the chat buffer by changing the
         chat = {
           -- Change the default icons
           icons = {
-            pinned_buffer = " ",
-            watched_buffer = "👀 ",
+            buffer_pin = " ",
+            buffer_watch = "👀 ",
           },
-    
+
           -- Alter the sizing of the debug window
           debug_window = {
             ---@return number|fun(): number
@@ -948,15 +1431,17 @@ You can change the appearance of the chat buffer by changing the
             ---@return number|fun(): number
             height = vim.o.lines - 2,
           },
-    
+
           -- Options to customize the UI of the chat buffer
           window = {
             layout = "vertical", -- float|vertical|horizontal|buffer
-            position = nil, -- left|right|top|bottom (nil will default depending on vim.opt.plitright|vim.opt.splitbelow)
+            position = nil, -- left|right|top|bottom (nil will default depending on vim.opt.splitright|vim.opt.splitbelow)
             border = "single",
             height = 0.8,
             width = 0.45,
             relative = "editor",
+            full_height = true, -- when set to false, vsplit will be used to open the chat buffer vs. botright/topleft vsplit
+            sticky = false, -- when set to true and `layout` is not `"buffer"`, the chat buffer will remain opened when switching tabs
             opts = {
               breakindent = true,
               cursorcolumn = false,
@@ -970,7 +1455,7 @@ You can change the appearance of the chat buffer by changing the
               wrap = true,
             },
           },
-    
+
           ---Customize how tokens are displayed
           ---@param tokens number
           ---@param adapter CodeCompanion.Adapter
@@ -989,8 +1474,9 @@ DIFF ~
 
   [!NOTE] Currently the plugin only supports native Neovim diff or mini.diff
   <https://github.com/echasnovski/mini.diff>
-If you utilize the `@editor` tool, then the plugin can update a given chat
-buffer. A diff will be created so you can see the changes made by the LLM.
+If you utilize the `insert_edit_into_file` tool, then the plugin can update a
+given chat buffer. A diff will be created so you can see the changes made by
+the LLM.
 
 There are a number of diff settings available to you:
 
@@ -1009,8 +1495,11 @@ There are a number of diff settings available to you:
 <
 
 
-UI ~
+USER INTERFACE (UI) ~
 
+
+  [!NOTE] The |codecompanion-installation-additional-plugins| section contains
+  installation instructions for some popular markdown rendering plugins
 
 USER AND LLM ROLES
 
@@ -1027,7 +1516,7 @@ customized in the configuration:
             llm = function(adapter)
               return "CodeCompanion (" .. adapter.formatted_name .. ")"
             end,
-    
+
             ---The header name for your messages
             ---@type string
             user = "Me",
@@ -1046,39 +1535,71 @@ the chat buffer.
 The user role is currently only available as a string.
 
 
-MARKDOWN RENDERING
+COMPLETION
 
-As the Chat Buffer uses markdown as its syntax, you can use popular rendering
-plugins to improve the UI:
-
-**render-markdown.nvim**
+By default, CodeCompanion looks to use the fantastic blink.cmp
+<https://github.com/Saghen/blink.cmp> plugin to complete variables, slash
+commands and tools. However, you can override this in your config:
 
 >lua
-    {
-      "MeanderingProgrammer/render-markdown.nvim",
-      ft = { "markdown", "codecompanion" }
-    },
+    require("codecompanion").setup({
+      strategies = {
+        chat = {
+          opts = {
+            completion_provider = "cmp", -- blink|cmp|coc|default
+          }
+        }
+      }
+    })
 <
 
-**markview.nvim**
+The plugin also supports nvim-cmp <https://github.com/hrsh7th/nvim-cmp>, a
+native completion solution (`default`), and coc.nvim
+<https://github.com/neoclide/coc.nvim>.
+
+
+AUTO SCROLLING
+
+By default, the page scrolls down automatically as the response streams, with
+the cursor placed at the end. This can be distracting if you are focusing on
+the earlier content while the page scrolls up away during a long response. You
+can disable this behavior using a flag:
 
 >lua
-    {
-      "OXY2DEV/markview.nvim",
-      lazy = false,
-      opts = {
-        preview = {
-          filetypes = { "markdown", "codecompanion" },
-          ignore_buftypes = {},
+    require("codecompanion").setup({
+      display = {
+        chat = {
+          auto_scroll = false,
         },
       },
-    },
+    }),
 <
 
 
-ADDITIONAL OPTIONS ~
+FOLD CONTEXT
 
-There are also a number of other options that you can customize:
+It’s not uncommon for users to share many items, as context, with an LLM.
+This can impact the chat buffer’s UI significantly, leaving a large space
+between the LLM’s last response and the user’s input. To minimize this
+impact, the context can be folded:
+
+>lua
+    require("codecompanion").setup({
+      display = {
+        chat = {
+          icons = {
+            chat_context = "📎️", -- You can also apply an icon to the fold
+          },
+          fold_context = true,
+        },
+      },
+    }),
+<
+
+
+ADDITIONAL UI OPTIONS
+
+There are also a number of other options that you can customize in the UI:
 
 >lua
     require("codecompanion").setup({
@@ -1087,7 +1608,7 @@ There are also a number of other options that you can customize:
           intro_message = "Welcome to CodeCompanion ✨! Press ? for options",
           show_header_separator = false, -- Show header separators in the chat buffer? Set this to false if you're using an external markdown formatting plugin
           separator = "─", -- The separator between the different messages in the chat buffer
-          show_references = true, -- Show references (from slash commands and variables) in the chat buffer?
+          show_context = true, -- Show context (from slash commands and variables) in the chat buffer?
           show_settings = false, -- Show LLM settings at the top of the chat buffer?
           show_token_count = true, -- Show the token count for each response?
           start_in_insert_mode = false, -- Open the chat buffer in insert mode?
@@ -1095,6 +1616,29 @@ There are also a number of other options that you can customize:
       },
     }),
 <
+
+
+JUMP ACTION ~
+
+The jump action (the command/function triggered by the `gR` keymap) can be
+customised as follows:
+
+>lua
+    require("codecompanion").setup({
+      strategies = {
+        chat = {
+          opts = {
+            goto_file_action = 'tabnew', -- this will always open the file in a new tab
+          },
+        },
+      },
+    })
+<
+
+This can either be a string (denoting a VimScript command), or a function that
+takes a single parameter (the path to the file to jump to). The default action
+is to jump to an existing tab if the file is already opened, and open a new tab
+otherwise.
 
 
 INLINE ASSISTANT                *codecompanion-configuration-inline-assistant*
@@ -1120,6 +1664,7 @@ The inline assistant supports keymaps for accepting or rejecting changes:
             },
             reject_change = {
               modes = { n = "gr" },
+              opts = { nowait = true },
               description = "Reject the suggested change",
             },
           },
@@ -1130,6 +1675,33 @@ The inline assistant supports keymaps for accepting or rejecting changes:
 
 In this example, `<leader>a` (or `ga` on some keyboards) accepts inline
 changes, while `gr` rejects them.
+
+
+VARIABLES ~
+
+The plugin comes with a number of
+|codecompanion-usage-inline-assistant.html-variables| that can be used
+alongside your prompt using the `#{}` syntax (e.g., `#{my_new_var}`). You can
+also add your own:
+
+>lua
+    require("codecompanion").setup({
+      strategies = {
+        inline = {
+          variables = {
+            ["my_new_var"] = {
+              ---@return string
+              callback = "/Users/Oli/Code/my_var.lua",
+              description = "My shiny new variable",
+              opts = {
+                contains_code = true,
+              },
+            },
+          }
+        }
+      }
+    })
+<
 
 
 LAYOUT ~
@@ -1184,7 +1756,7 @@ Custom prompts can be added as follows:
             auto_submit = false,
             short_name = "docs",
           },
-          references = {
+          context = {
             {
               type = "file",
               path = {
@@ -1198,9 +1770,9 @@ Custom prompts can be added as follows:
             {
               role = "user",
               content = [[I'm rewriting the documentation for my plugin CodeCompanion.nvim, as I'm moving to a vitepress website. Can you help me rewrite it?
-    
+
     I'm sharing my vitepress config file so you have the context of how the documentation website is structured in the `sidebar` section of that file.
-    
+
     I'm also sharing my `config.lua` file which I'm mapping to the `configuration` section of the sidebar.
     ]],
             },
@@ -1235,7 +1807,7 @@ The plugin comes with the following system prompt:
 
 >txt
     You are an AI programming assistant named "CodeCompanion". You are currently plugged in to the Neovim text editor on a user's machine.
-    
+
     Your core tasks include:
     - Answering general programming questions.
     - Explaining how the code in a Neovim buffer works.
@@ -1247,7 +1819,7 @@ The plugin comes with the following system prompt:
     - Proposing fixes for test failures.
     - Answering questions about Neovim.
     - Running tools.
-    
+
     You must:
     - Follow the user's requirements carefully and to the letter.
     - Keep your answers short and impersonal, especially if the user responds with context outside of your tasks.
@@ -1260,7 +1832,7 @@ The plugin comes with the following system prompt:
     - Use actual line breaks instead of '\n' in your response to begin new lines.
     - Use '\n' only when you want a literal backslash followed by a character 'n'.
     - All non-code responses must be in %s.
-    
+
     When given a task:
     1. Think step-by-step and describe your plan for what to build in pseudocode, written out in great detail, unless asked not to do so.
     2. Output the code in a single code block, being careful to only return relevant code.
@@ -1271,7 +1843,7 @@ The plugin comes with the following system prompt:
 
 CHANGING THE SYSTEM PROMPT ~
 
-The default system prompt cant be changed with:
+The default system prompt can be changed with:
 
 >lua
     require("codecompanion").setup({
@@ -1286,6 +1858,53 @@ The default system prompt cant be changed with:
 The `opts` parameter contains the default adapter for the chat strategy
 (`opts.adapter`) alongside the language (`opts.language`) that the LLM should
 respond with.
+
+
+EXTENSIONS                            *codecompanion-configuration-extensions*
+
+CodeCompanion supports extensions similar to telescope.nvim, allowing users to
+create functionality that can be shared with others. Extensions can either be
+distributed as plugins or defined locally in your configuration.
+
+
+INSTALLING EXTENSIONS ~
+
+CodeCompanion supports extensions that add additional functionality to the
+plugin. For example, to install and set up the mcphub extension using
+lazy.nvim:
+
+1. Install the extension:
+
+>lua
+    {
+      "olimorris/codecompanion.nvim",
+      dependencies = {
+        -- Add mcphub.nvim as a dependency
+        "ravitemer/mcphub.nvim"
+      }
+    }
+<
+
+1. Add extension to your config with additional options:
+
+>lua
+    -- Configure in your setup
+    require("codecompanion").setup({
+      extensions = {
+        mcphub = {
+          callback = "mcphub.extensions.codecompanion",
+          opts = {
+            make_vars = true,
+            make_slash_commands = true,
+            show_result_in_chat = true
+          }
+        }
+      }
+    })
+<
+
+Visit the creating |codecompanion-extending-extensions| guide to learn more
+about available extensions and how to create your own.
 
 
 OTHER OPTIONS                      *codecompanion-configuration-other-options*
@@ -1345,11 +1964,17 @@ HIGHLIGHT GROUPS ~
 
 The plugin sets the following highlight groups during setup:
 
+- `CodeCompanionChatInfo` - Information messages in the chat buffer
+- `CodeCompanionChatError` - Error messages in the chat buffer
+- `CodeCompanionChatWarn` - Warning messages in the chat buffer
+- `CodeCompanionChatSubtext` - Messages that appear under the information, error or warning messages in the chat buffer
 - `CodeCompanionChatHeader` - The headers in the chat buffer
 - `CodeCompanionChatSeparator` - Separator between headings in the chat buffer
+- `CodeCompanionSuperDiffDirectory` - Highlight directories in a Super Diff buffer
+- `CodeCompanionSuperDiffFilename` - Highlight filenames in a Super Diff buffer
 - `CodeCompanionChatTokens` - Virtual text in the chat buffer showing the token count
-- `CodeCompanionChatAgent` - Agents in the chat buffer
 - `CodeCompanionChatTool` - Tools in the chat buffer
+- `CodeCompanionChatToolGroups` - Tool groups in the chat buffer
 - `CodeCompanionChatVariable` - Variables in the chat buffer
 - `CodeCompanionVirtualText` - All other virtual text in the plugin
 
@@ -1371,19 +1996,27 @@ The fastest way to copy an LLM’s code output is with `gy`. This will yank the
 nearest codeblock.
 
 
-AUTOMATICALLY UPDATE A BUFFER ~
+APPLYING AN LLM�S EDITS TO A BUFFER OR FILE ~
 
-The |codecompanion-usage-chat-buffer-agents-editor| tool enables an LLM to
-modify code in a Neovim buffer. This is especially useful if you do not wish to
-manually apply an LLM’s suggestions yourself. Simply tag it in the chat
-buffer with `@editor`.
+The |codecompanion-usage-chat-buffer-tools-files| tool, combined with the
+|codecompanion-usage-chat-buffer-variables.html-buffer| variable or
+|codecompanion-usage-chat-buffer-slash-commands.html-buffer| slash command,
+enables an LLM to modify code in a Neovim buffer. This is especially useful if
+you do not wish to manually apply an LLM’s suggestions yourself. Simply tag
+it in the chat buffer with `@files` or `@insert_edit_into_file`.
 
 
 RUN TESTS FROM THE CHAT BUFFER ~
 
-The |codecompanion-usage-chat-buffer-agents-cmd-runner| tool enables an LLM to
+The |codecompanion-usage-chat-buffer-tools-cmd-runner| tool enables an LLM to
 execute commands on your machine. This can be useful if you wish the LLM to run
-a test suite on your behalf and give insight on failing cases.
+a test suite on your behalf and give insight on failing cases. Simply tag the
+`@cmd_runner` in the chat buffer and ask it run your tests.
+
+
+NAVIGATING BETWEEN RESPONSES IN THE CHAT BUFFER ~
+
+You can quickly move between responses in the chat buffer using `[[` or `]]`.
 
 
 QUICKLY ACCESSING A CHAT BUFFER ~
@@ -1417,6 +2050,7 @@ The plugin also defines a number of prompts in the form of the prompt library:
 - `Explain LSP Diagnostics` - Explain the LSP diagnostics for the selected code
 - `Unit Tests` - Generate unit tests for selected code
 - `Generate a Commit Message` - Generate a commit message
+- `Workspace File` - Generating a new workspace file and/or creating a group
 
 
   [!INFO] These can also be called via the cmd line for example `:CodeCompanion
@@ -1449,8 +2083,8 @@ This can of course be changed as per the |codecompanion--keymaps| section.
 MESSAGES ~
 
 
-  [!TIP] The message history can be modified via the debug window (`gd`) in the
-  chat buffer
+  [!TIP] The message history and adapter settings can be modified via the debug
+  window (`gd`) in the chat buffer
 It’s important to note that some messages, such as system prompts or context
 provided via |codecompanion-usage-chat-buffer-slash-commands|, will be hidden.
 This is to keep the chat buffer uncluttered from a UI perspective. Using the
@@ -1463,15 +2097,82 @@ the user can edit as they wish. To persist any changes, the chat buffer keymaps
 for sending a message (defaults: `<CR>` or `<C-s>`) can be used.
 
 
+IMAGES / VISION ~
+
+Many LLMs have the ability to receive images as input (sometimes referred to as
+vision). CodeCompanion supports the adding of images into the chat buffer via
+the |codecompanion-usage-chat-buffer-slash-commands-image| slash command and
+through the system clipboard with |codecompanion-installation-img-clip-nvim|.
+CodeCompanion can work with images in your file system and also with remote
+URLs, encoding both into a base64 representation.
+
+If your adapter and model doesn’t support images, then CodeCompanion will
+endeavour to ensure that the image is not included in the messages payload
+that’s sent to the LLM.
+
+
+CONTEXT ~
+
+
+
+Sharing context with an LLM is crucial in order to generate useful responses.
+In the plugin, context is defined as output that is shared with a chat buffer
+via a `Variable`, `Slash Command` or `Tool`. They appear in a blockquote
+entitled `Context`. In essence, this is context that you’re sharing with an
+LLM.
+
+
+  [!IMPORTANT] Context items contain the data of an object at a point in time. By
+  default, they **are not** self-updating
+In order to allow for context to self-update, they can be `pinned` (for files
+and buffers) or `watched` (for buffers).
+
+File and buffer context items can be `pinned` to a chat buffer with the `gp`
+keymap (when your cursor is on the line of the shared buffer in the “>
+Context section). Pinning results in the content from the object being reloaded
+and shared with the LLM on every turn. The advantage of this is that the LLM
+will always receive a fresh copy of the source data regardless of any changes.
+This can be useful if you’re working with tools. However, please note that
+this can consume a lot of tokens.
+
+Buffer context items can be `watched` via the `gw` keymap (when your cursor is
+on the line of the shared buffer in the “> Context section). Watching, whilst
+similar to pinning, is a more token-conscious way of keeping the LLM up to date
+on the contents of a buffer. Watchers track changes (adds, edits, deletes) in
+the underlying buffer and update the LLM on each turn, with only those changes.
+
+If a context item is added by mistake, it can be removed from the chat buffer
+by simply deleting it from the `Context` blockquote. On the next turn, all data
+related to that context item will be removed from the message history.
+
+Finally, it’s important to note that all LLM endpoints require the sending of
+previous messages that make up the conversation. So even though you’ve shared
+context once, many messages ago, the LLM will always have that it to refer to.
+
+
+SETTINGS ~
+
+
+
+When conversing with an LLM, it can be useful to tweak model settings in
+between responses in order to generate the perfect output. If settings are
+enabled (`display.chat.show_settings = true`), then a yaml block will be
+present at the top of the chat buffer which can be modified in between
+responses. The yaml block is simply a representation of an adapter’s schema
+table.
+
+
 COMPLETION ~
 
 
+  [!IMPORTANT] As of `v17.5.0`, variables and tools are wrapped in curly braces
+  automatically, such as `#{buffer}` or `@{files}`
 
-The plugin supports multiple completion plugins out of the box. By default, the
-plugin will look to setup blink.cmp <https://github.com/Saghen/blink.cmp>
-before trying to setup nvim-cmp <https://github.com/hrsh7th/nvim-cmp>. If you
-don’t use a completion plugin, then you can use native completions with no
-setup, invoking them with `<C-_>` from within the chat buffer.
+
+You can invoke the completion plugins by typing `#` or `@` followed by the
+variable or tool name, which will trigger the completion menu. If you don’t
+use a completion plugin, you can use native completions with no setup, invoking
+them with `<C-_>` from within the chat buffer.
 
 
 KEYMAPS ~
@@ -1488,10 +2189,13 @@ The keymaps available to the user in normal mode are:
 - `gc` to insert a codeblock in the chat buffer
 - `gd` to view/debug the chat buffer’s contents
 - `gf` to fold any codeblocks in the chat buffer
-- `gp` to pin a reference to the chat buffer
-- `gw` to watch a referenced buffer
+- `gp` to pin an item to the context in the chat buffer
+- `gw` to watch a buffer as context in the chat buffer
 - `gr` to regenerate the last response
+- `gR` to go to the file under cursor. If the file is already opened, it’ll jump
+    to the existing window. Otherwise, it’ll be opened in a new tab.
 - `gs` to toggle the system prompt on/off
+- `gS` to show copilot usage stats
 - `gta` to toggle auto tool mode
 - `gx` to clear the chat buffer’s contents
 - `gy` to yank the last codeblock in the chat buffer
@@ -1501,61 +2205,14 @@ The keymaps available to the user in normal mode are:
 - `}` to move to the next chat
 
 
-REFERENCES ~
+TOOLS                                              *codecompanion-usage-tools*
 
 
+  [!IMPORTANT] As of `v17.5.0`, tools must be wrapped in curly braces, such as
+  `@{grep_search}` or `@{files}`
 
-Sharing context with an LLM is crucial in order to generate useful responses.
-In the plugin, references are defined as output that is shared with a chat
-buffer via a `Variable`, `Slash Command` or `Agent/Tool`. They appear in a
-blockquote entitled `Sharing`. In essence, this is context that you’re
-sharing with an LLM.
-
-
-  [!IMPORTANT] References contain the data of an object at a point in time. By
-  default, they **are not** self-updating
-In order to allow for references to self-update, they can be `pinned` (for
-files and buffers) or `watched` (for buffers).
-
-File and buffer references can be `pinned` to a chat buffer with the `gp`
-keymap. Pinning results in the content from the object being reloaded and
-shared with the LLM on every turn. The advantage of this is that the LLM will
-always receive a fresh copy of the source data regardless of any changes. This
-can be useful if you’re working with agents and tools. However, please note
-that this can consume a lot of tokens.
-
-Buffer references can be `watched` via the `gw` keymap. Watching, whilst
-similar to pinning, is a more token-conscious way of keeping the LLM up to date
-on the contents of a buffer. Watchers track changes (adds, edits, deletes) in
-the underlying buffer and update the LLM on each turn, with only those changes.
-
-If a reference is added by mistake, it can be removed from the chat buffer by
-simply deleting it from the `Sharing` blockquote. On the next turn, all context
-related to that reference will be removed from the message history.
-
-Finally, it’s important to note that all LLM endpoints require the sending of
-previous messages that make up the conversation. So even though you’ve shared
-a reference once, many messages ago, the LLM will always have that context to
-refer to.
-
-
-SETTINGS ~
-
-
-
-When conversing with an LLM, it can be useful to tweak model settings in
-between responses in order to generate the perfect output. If settings are
-enabled (`display.chat.show_settings = true`), then a yaml block will be
-present at the top of the chat buffer which can be modified in between
-responses. The yaml block is simply a representation of an adapter’s schema
-table.
-
-
-AGENTS AND TOOLS                        *codecompanion-usage-agents-and-tools*
-
-
-  [!TIP] More information on how agents and tools work and how you can create
-  your own can be found in the |codecompanion-extending-tools| guide.
+  [!IMPORTANT] Not all LLMs support function calling and the use of tools. Please
+  see the |codecompanion--compatibility| section for more information.
 As outlined by Andrew Ng in Agentic Design Patterns Part 3, Tool Use
 <https://www.deeplearning.ai/the-batch/agentic-design-patterns-part-3-tool-use>,
 LLMs can act as agents by leveraging external tools. Andrew notes some common
@@ -1563,167 +2220,325 @@ examples such as web searching or code execution that have obvious benefits
 when using LLMs.
 
 In the plugin, tools are simply context and actions that are shared with an LLM
-via a `system` prompt. The LLM and the chat buffer act as an agent by
-orchestrating their use within Neovim. Tools give LLM’s knowledge and a
-defined schema which can be included in the response for the plugin to parse,
-execute and feedback on. Agents and tools can be added as a participant to the
-chat buffer by using the `@` key.
+via a `system` prompt. The LLM can act as an agent by requesting tools via the
+chat buffer which in turn orchestrates their use within Neovim. Tools can be
+added as a participant to the chat buffer by using the `@` key.
 
 
-  [!IMPORTANT] The agentic use of some tools in the plugin results in you, the
-  developer, acting as the human-in-the-loop and approving their use. I intend on
-  making this easier in the coming releases
+  [!IMPORTANT] The use of some tools in the plugin results in you, the developer,
+  acting as the human-in-the-loop and approving their use.
 
 HOW TOOLS WORK ~
 
-LLMs are instructured by the plugin to return a structured XML block which has
-been defined for each tool. The chat buffer parses the LLMs response and
-detects any tool use before calling the appropriate tool. The chat buffer will
-then be updated with the outcome. Depending on the tool, flags may be inserted
-on the chat buffer for later processing.
+Tools make use of an LLM’s function calling
+<https://platform.openai.com/docs/guides/function-calling> ability. All tools
+in CodeCompanion follow OpenAI’s function calling specification, here
+<https://platform.openai.com/docs/guides/function-calling#defining-functions>.
+
+When a tool is added to the chat buffer, the LLM is instructured by the plugin
+to return a structured JSON schema which has been defined for each tool. The
+chat buffer parses the LLMs response and detects the tool use before triggering
+the `tools/init.lua` file. The tool system triggers off a series of events,
+which sees tool’s added to a queue and sequentially worked with their output
+being shared back to the LLM via the chat buffer. Depending on the tool, flags
+may be inserted on the chat buffer for later processing.
+
+An outline of the architecture can be seen
+|codecompanion-extending-tools-architecture|.
 
 
-@CMD_RUNNER ~
+COMMUNITY TOOLS ~
+
+There is also a thriving ecosystem of user created tools:
+
+- VectorCode <https://github.com/Davidyz/VectorCode/tree/main> - A code repository indexing tool to supercharge your LLM experience
+- mcphub.nvim <https://github.com/ravitemer/mcphub.nvim> - A powerful Neovim plugin for managing MCP (Model Context Protocol) servers
+
+The section of the discussion forums which is dedicated to user created tools
+can be found here
+<https://github.com/olimorris/codecompanion.nvim/discussions/categories/tools>.
+
+
+SECURITY AND APPROVALS ~
+
+CodeCompanion takes security very seriously, especially in a world of agentic
+code development. To that end, every effort is made to ensure that LLMs are
+only given the information that they need to execute a tool successfully.
+CodeCompanion will endeavour to make sure that the full disk path to your
+current working directory (cwd) in Neovim is never shared. The impact of this
+is that the LLM can only work within the cwd when executing tools but will
+minimize actions that are hard to recover from
+<https://www.businessinsider.com/replit-ceo-apologizes-ai-coding-tool-delete-company-database-2025-7>.
+
+The plugin also puts approvals at the heart of its workflow. Some tools, such
+as the `@cmd_runner`, require the user to approve any actions before they can
+be executed. If the tool requires this a `vim.fn.confirm` dialog will prompt
+you for a response. You may also
+|codecompanion-configuration-chat-buffer-approvals| an approval for `any` tool.
+
+
+AVAILABLE TOOLS ~
+
+
+CMD_RUNNER
 
 The `@cmd_runner` tool enables an LLM to execute commands on your machine,
-subject to your authorization. A common example can be asking the LLM to run
-your test suite and provide feedback on any failures. Some commands do not
-write any data to stdout
+subject to your authorization. For example:
+
+>md
+    Can you use the @{cmd_runner} tool to run my test suite with `pytest`?
+<
+
+>md
+    Use the @{cmd_runner} tool to install any missing libraries in my project
+<
+
+Some commands do not write any data to stdout
 <https://en.wikipedia.org/wiki/Standard_streams#Standard_output_(stdout)> which
 means the plugin can’t pass the output of the execution to the LLM. When this
 occurs, the tool will instead share the exit code.
 
 The LLM is specifically instructed to detect if you’re running a test suite,
-and if so, to insert a flag in its XML request. This is then detected and the
+and if so, to insert a flag in its request. This is then detected and the
 outcome of the test is stored in the corresponding flag on the chat buffer.
 This makes it ideal for |codecompanion-extending-workflows| to hook into.
 
-An example of the XML that an LLM may generate for the tool:
+**Options:** - `requires_approval` require approval before running a command?
+(Default: true)
 
->xml
-    <tools>
-      <tool name="cmd_runner">
-        <action>
-          <command><![CDATA[make test]]></command>
-          <flag>testing</flag>
-        </action>
-      </tool>
-    </tools>
+
+CREATE_FILE
+
+
+  [!NOTE] By default, this tool requires user approval before it can be executed
+Create a file within the current working directory:
+
+>md
+    Can you create some test fixtures using the @{create_file} tool?
+<
+
+**Options:** - `requires_approval` require approval before creating a file?
+(Default: true)
+
+
+FETCH_WEBPAGE
+
+This tools enables an LLM to fetch the content from a specific webpage. It will
+return the text in a text format, depending on which adapter you’ve
+configured for the tool.
+
+>md
+    Use the @{fetch_webpage} tool to tell me what the latest version on neovim.io is
+<
+
+**Options:** - `adapter` The adapter used to fetch, process and format the
+webpage’s content (Default: `jina`)
+
+
+FILE_SEARCH
+
+This tool enables an LLM to search for files in the current working directory
+by glob pattern. It will return a list of relative paths for any matching
+files.
+
+>md
+    Use the @{file_search} tool to list all the lua files in my project
+<
+
+**Options:** - `max_results` limits the amount of results that can be sent to
+the LLM in the response (Default: 500)
+
+
+GET_CHANGED_FILES
+
+This tool enables an LLM to get git diffs of any file changes in the current
+working directory. It will return a diff which can contain `staged`, `unstaged`
+and `merge-conflicts`.
+
+>md
+    Use the @{get_changed_files} tool see what's changed
+<
+
+**Options:** - `max_lines` limits the amount of lines that can be sent to the
+LLM in the response (Default: 1000)
+
+
+GREP_SEARCH
+
+
+  [!IMPORTANT] This tool requires ripgrep <https://github.com/BurntSushi/ripgrep>
+  to be installed
+This tool enables an LLM to search for text, within files, in the current
+working directory. For every match, the output (`{filename}:{line number}
+{relative filepath}`) will be shared with the LLM:
+
+>md
+    Use the @{grep_search} tool to find all occurrences of `buf_add_message`?
+<
+
+**Options:** - `max_files` (number) limits the amount of files that can be sent
+to the LLM in the response (Default: 100) - `respect_gitignore` (boolean)
+(Default: true)
+
+
+INSERT_EDIT_INTO_FILE
+
+
+  [!NOTE] By default, when editing files, this tool requires user approval before
+  it can be executed
+This tool can edit buffers and files for code changes from an LLM:
+
+>md
+    Use the @{insert_edit_into_file} tool to refactor the code in #buffer
+<
+
+>md
+    Can you apply the suggested changes to the buffer with the @{insert_edit_into_file} tool?
+<
+
+**Options:** - `patching_algorithm` (string|table|function) The algorithm to
+use to determine how to edit files and buffers - `requires_approval.buffer`
+(boolean) Require approval before editng a buffer? (Default: false) -
+`requires_approval.file` (boolean) Require approval before editng a file?
+(Default: true) - `user_confirmation` (boolean) require confirmation from the
+user before moving on in the chat buffer? (Default: true)
+
+
+LIST_CODE_USAGES
+
+
+  [!NOTE] This tool requires LSP to be configured and active for optimal results
+This tool enables an LLM to find all usages of a symbol (function, class,
+method, variable, etc.) throughout your codebase. It leverages LSP for accurate
+results and falls back to grep for broader text searching.
+
+The tool provides comprehensive information about symbols including:
+
+- **References**: All places where the symbol is used
+- **Definitions**: Where the symbol is defined
+- **Implementations**: Concrete implementations of interfaces/abstract methods
+- **Declarations**: Forward declarations
+- **Type Definitions**: Type aliases and definitions
+- **Documentation**: Hover documentation when available
+
+>md
+    Use the @{list_code_usages} tool to find all usages of the `create_file` function
+<
+
+>md
+    Can you use @{list_code_usages} to show me how the `Tools` class is implemented and used?
 <
 
 
-@EDITOR ~
+NEXT_EDIT_SUGGESTION
 
-The `@editor` tool enables an LLM to modify the code in a Neovim buffer. If a
-buffer’s content has been shared with the LLM then the tool can be used to
-add, edit or delete specific lines. Consider pinning or watching a buffer to
-avoid manually re-sending a buffer’s content to the LLM.
+Inspired by Copilot Next Edit Suggestion
+<https://code.visualstudio.com/blogs/2025/02/12/next-edit-suggestions>, the
+tool gives the LLM the ability to show the user where the next edit is. The LLM
+can only suggest edits in files or buffers that have been shared with it as
+context.
 
-An example of the XML that an LLM may generate for the tool:
+**Options:** - `jump_action` (string|function) Determines how a jump to the
+next edit is made (Default: `tabnew`)
 
->xml
-    <tools>
-      <tool name="editor">
-        <action type="add">
-          <code><![CDATA[
-        def transfer(self, amount, account):
-            pass
-          ]]></code>
-          <buffer>3</buffer>
-          <line>15</line>
-        </action>
-        <action type="delete">
-          <buffer>3</buffer>
-          <start_line>17</start_line>
-          <end_line>18</end_line>
-        </action>
-        <action type="update">
-          <code><![CDATA[
-        def deposit(self, amount):
-            print(f"Depositing {amount}")
-          ]]></code>
-          <buffer>3</buffer>
-          <start_line>11</start_line>
-          <end_line>12</end_line>
-        </action>
-      </tool>
-    </tools>
+
+READ_FILE
+
+This tool can read the contents of a specific file in the current working
+directory. This can be useful for an LLM to gain wider context of files that
+haven’t been shared with it.
+
+
+SEARCH_WEB
+
+This tool enables an LLM to search the web for a specific query, enabling it to
+receive up to date information:
+
+>md
+    Use @{search_web} tool to find the latest version of Neovim?
 <
 
-
-@FILES ~
-
-
-  [!NOTE] All file operations require approval from the user before they’re
-  executed
-The `@files` tool leverages the Plenary.Path
-<https://github.com/nvim-lua/plenary.nvim/blob/master/lua/plenary/path.lua>
-module to enable an LLM to perform various file operations on the user’s
-disk:
-
-- Creating a file
-- Reading a file
-- Reading lines from a file
-- Editing a file
-- Deleting a file
-- Renaming a file
-- Copying a file
-- Moving a file
-
-An example of the XML that an LLM may generate for the tool:
-
->xml
-    <tools>
-      <tool name="files">
-        <action type="create">
-          <contents><![CDATA[
-    <example>
-      <title>Sample XML</title>
-      <description>This is an example XML file for the files tool.</description>
-      <items>
-        <item>
-          <name>Item 1</name>
-          <value>Value 1</value>
-        </item>
-        <item>
-          <name>Item 2</name>
-          <value>Value 2</value>
-        </item>
-      </items>
-    </example>
-          ]]></contents>
-          <path>/Users/Oli/Code/Python/benchmarking/exercises/practice/bank-account/example.xml</path>
-        </action>
-      </tool>
-    </tools>
+>md
+    Use the @{search_web} tool to search neovim.io and explain how I can configure a new language server
 <
 
-
-@RAG ~
-
-The `@rag` tool uses jina.ai <https://jina.ai> to parse a given URL’s content
-and convert it into plain text before sharing with the LLM. It also gives the
-LLM the ability to search the internet for information.
+Currently, the tool uses tavily <https://www.tavily.com> and you’ll need to
+ensure that an API key has been set accordingly, as per the adapter
+<https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/adapters/tavily.lua>.
 
 
-@FULL_STACK_DEV ~
+GROUPS ~
 
-The `@full_stack_dev` agent is a combination of the `@cmd_runner`, `@editor`
-and `@files` tools.
+CodeCompanion comes with two built-in tool groups:
+
+- `full_stack_dev` - Containing all of the tools
+- `files` - Containing `create_file`, `file_search`, `get_changed_files`, `grep_search`, `insert_edit_into_file` and `read_file` tools
+
+When you include a tool group in your chat (e.g., `@{files}`), all tools within
+that group become available to the LLM. By default, all the tools in the group
+will be shown as a single `<group>name</group>` reference in the chat buffer.
+
+If you want to show all tools as context items in the chat buffer, set the
+`opts.collapse_tools` option to `false` on the group itself.
 
 
 USEFUL TIPS ~
 
 
+COMBINING TOOLS
+
+Consider combining tools for complex tasks:
+
+>md
+    @{full_stack_dev} I want to play Snake. Can you create the game for me in Python and install any packages you need. Let's save it to ~/Code/Snake. When you've finished writing it, can you open it so I can play?
+<
+
+
 AUTOMATIC TOOL MODE
 
 The plugin allows you to run tools on autopilot. This automatically approves
-any tool use instead of prompting the user, disables any diffs, and
-automatically saves any buffers that the agent has edited. Simply set the
-global variable `vim.g.codecompanion_auto_tool_mode` to enable this or set it
-to `nil` to undo this. Alternatively, the keymap `gta` will toggle the feature
-whist from the chat buffer.
+any tool use instead of prompting the user, disables any diffs, submits errors
+and success messages and automatically saves any buffers that tools may have
+edited. Simply set the global variable `vim.g.codecompanion_auto_tool_mode` to
+enable this or set it to `nil` to undo this. Alternatively, the keymap `gta`
+will toggle the feature whist from the chat buffer.
 
+
+COMPATIBILITY ~
+
+Below is the tool use status of various adapters and models in CodeCompanion:
+
+  ------------------------------------------------------------------------
+  Adapter        Model            Supported   Notes
+  -------------- -------------- ------------- ----------------------------
+  Anthropic                                   Dependent on the model
+
+  Azure OpenAI                                Dependent on the model
+
+  Copilot                                     Dependent on the model
+
+  DeepSeek                                    Dependent on the model
+
+  Gemini                                      Dependent on the model
+
+  GitHub Models  All                          Not supported yet
+
+  Huggingface    All                          Not supported yet
+
+  Mistral        All                          Not supported yet
+
+  Novita                                      Dependent on the model
+
+  Ollama         Tested with                  Dependent on the model
+                 Qwen3
+
+  OpenAI                                      Dependent on the model and
+  Compatible                                  provider
+
+  OpenAI                                      Dependent on the model
+
+  xAI            All                          Not supported yet
+  ------------------------------------------------------------------------
 
 SLASH COMMANDS                            *codecompanion-usage-slash-commands*
 
@@ -1735,6 +2550,10 @@ alongside the `prompt_library` table where individual prompts have
 
 /BUFFER ~
 
+
+  [!NOTE] As of v16.2.0
+  <https://github.com/olimorris/codecompanion.nvim/releases/tag/v16.2.0>, buffers
+  are now watched by default
 The `buffer` slash command enables you to add the contents of any open buffers
 in Neovim to the chat buffer. The command has native, `Telescope`, `mini.pick`,
 `fzf.lua` and `snacks.nvim` providers available. Also, multiple buffers can be
@@ -1759,7 +2578,21 @@ URL.
 The `file` slash command allows you to add the contents of a file in the
 current working directory to the chat buffer. The command has native,
 `Telescope`, `mini.pick`, `fzf.lua` and `snacks.nvim` providers available.
-Also, multiple files can be selected and added to the chat buffer.
+Also, multiple files can be selected and added to the chat buffer:
+
+- Select a single file: `⏎ enter`
+- Select multiple files: `⇥ tab`
+
+Please note that these mappings may be different depending on your provider.
+
+
+/QUICKFIX ~
+
+The `quickfix` slash command adds entries from the Neovim quickfix list to the
+chat buffer.
+
+- For search patterns or file entries, the whole file is shared.
+- For diagnostics, the context of the function/method/class is shared if possible; otherwise, 10 lines around the diagnostic are included.
 
 
 /HELP ~
@@ -1769,6 +2602,15 @@ The `help` slash command allows you to add content from a vim help file
 only available for `Telescope`, `mini.pick`, `fzf_lua` and `snacks.nvim`
 providers. By default, the slash command will prompt you to trim a help file
 that is over 1,000 lines in length.
+
+
+/IMAGE ~
+
+The `image` slash command allows you to add images into a chat buffer via
+remote URLs and through your file system. In the config for the slash command,
+you can specify a group of directories (with `opts.dirs`) that the image picker
+will always search in, alongside the current working directory. Currently the
+image picker is only available with `snacks.nvim` and the `vim.ui.select`.
 
 
 /NOW ~
@@ -1797,8 +2639,9 @@ chat buffer.
 
 /TERMINAL ~
 
-The `terminal` slash command shares the output from the last terminal buffer
-with the chat buffer.
+The `terminal` slash command shares the latest output from the last terminal
+buffer with the chat buffer. This can be useful for sharing the outputs of test
+runs with your LLM.
 
 
 /WORKSPACE ~
@@ -1813,7 +2656,11 @@ essence, a context management system for your repository.
 Whilst LLMs are incredibly powerful, they have no knowledge of the
 architectural decisions yourself or your team have made on a project. They have
 no context as to why you’ve selected the dependencies that you have. And,
-they can’t see how your codebase has evolved over time.
+they can’t see how your codebase has evolved over time. To help you create
+your own workspace file, leverage the
+|codecompanion-usage-action-palette.html-default-prompts| prompt in the action
+palette and install the amazing VectorCode
+<https://github.com/Davidyz/VectorCode/tree/main> tool.
 
 Please see the |codecompanion-extending-workspace| guide to learn how to build
 your own.
@@ -1821,44 +2668,83 @@ your own.
 
 VARIABLES                                      *codecompanion-usage-variables*
 
-Variables allow you to share data about the current state of Neovim with an
-LLM. Simply type `#` in the chat buffer and trigger code completion if you’re
-not using blink.cmp or nvim-cmp. Alternatively, type the variables manually.
-After the response is sent to the LLM, you should see the variable output
-tagged as a reference in the chat buffer.
+Variables allow you to dynamically insert Neovim context into your chat
+messages using the `#{variable_name}` syntax. They’re processed when you send
+your message to the LLM, automatically including relevant content like buffer
+contents, LSP diagnostics, or your current viewport. Type `#` in the chat
+buffer to see available variables through code completion, or type them
+manually.
 
-Custom variables can be shared by adding them to the
+Custom variables can be shared in the chat buffer by adding them to the
 `strategies.chat.variables` table in your configuration.
+
+
+BASIC USAGE ~
+
+Variables use the `#{variable_name}` syntax to dynamically insert content into
+your chat. For example `#{buffer}`. Variables are processed when you send your
+message to the LLM.
 
 
 #BUFFER ~
 
-The `#buffer` variable shares the full contents from the buffer that the user
-was last in when they initiated `:CodeCompanionChat`. To select another buffer,
-use the `/buffer` slash command. These buffers can be
-|codecompanion-usage-chat-buffer-index-references| to enable updated content to
-be automatically shared with the LLM.
 
-It’s also possible to pass parameters to the `#buffer` variable:
+  [!IMPORTANT] By default, CodeCompanion automatically applies `{watch}` to all
+  buffers
+The `#{buffer}` variable shares buffer contents with the LLM. It has two
+special parameters which control how content is shared with the LLM:
 
-- `#buffer:23-30` - To send lines 23 to 30 of the current buffer the LLM
-- `#buffer:pin` - To pin the current buffer
-- `#buffer:watch` - To watch the current buffer
+**{pin}** - Sends the entire buffer content to the LLM whenever the buffer
+changes. Use this when you want the LLM to always have the complete, up-to-date
+file context.
 
+**{watch}** - Sends only the changed portions of the buffer to the LLM. Use
+this for large files where you only want to share incremental changes to reduce
+token usage.
+
+
+BASIC USAGE
+
+- `#{buffer}` - Shares the current buffer (last one you were in)
+
+
+TARGET SPECIFIC BUFFERS
+
+- `#{buffer:init.lua}` - Shares a specific file by name
+- `#{buffer:src/main.rs}` - Shares a file by relative path
+- `#{buffer:utils}` - Shares a file containing "utils" in the path
+
+
+WITH PARAMETERS
+
+- `#{buffer}{pin}` - Pins the buffer (sends entire buffer on changes)
+- `#{buffer}{watch}` - Watches for changes (sends only changes)
+- `#{buffer:config.lua}{pin}` - Combines targeting with parameters
+
+
+MULTIPLE BUFFERS
+
+>
+    Compare #{buffer:old_file.js} with #{buffer:new_file.js} and explain the differences.
+<
+
+
+  **Note:** For selecting multiple buffers with more control, use the `/buffer`
+  slash command.
 
 #LSP ~
 
 
   [!TIP] The |codecompanion-usage-action-palette| has a pre-built prompt which
   asks an LLM to explain LSP diagnostics in a visual selection
-The `#lsp` variable shares any information from the LSP servers that active in
+The `lsp` variable shares any information from the LSP servers that active in
 the current buffer. This can serve as useful context should you wish to
 troubleshoot any errors with an LLM.
 
 
 #VIEWPORT ~
 
-The `#viewport` variable shares with the LLM, exactly what you see on your
+The `viewport` variable shares with the LLM, exactly what you see on your
 screen at the point a response is sent (excluding the chat buffer of course).
 
 
@@ -1870,19 +2756,25 @@ config, the plugin fires events at various points during its lifecycle.
 
 LIST OF EVENTS ~
 
-The events that you can access are:
+The events that are fired from within the plugin are:
 
 - `CodeCompanionChatCreated` - Fired after a chat has been created for the first time
 - `CodeCompanionChatOpened` - Fired after a chat has been opened
 - `CodeCompanionChatHidden` - Fired after a chat has been hidden
 - `CodeCompanionChatClosed` - Fired after a chat has been permanently closed
+- `CodeCompanionChatSubmitted` - Fired after a chat has been submitted
+- `CodeCompanionChatDone` - Fired after a chat has received the response
 - `CodeCompanionChatStopped` - Fired after a chat has been stopped
+- `CodeCompanionChatCleared` - Fired after a chat has been cleared
 - `CodeCompanionChatAdapter` - Fired after the adapter has been set in the chat
 - `CodeCompanionChatModel` - Fired after the model has been set in the chat
-- `CodeCompanionChatPin` - Fired after a pinned reference has been updated in the messages table
+- `CodeCompanionChatPin` - Fired after a pinned context item has been updated in the messages table
+- `CodeCompanionContextChanged` - Fired when the context that a chat buffer follows, changes
+- `CodeCompanionToolsStarted` - Fired when the tool system has been initiated
+- `CodeCompanionToolsFinished` - Fired when the tool system has finished running all tools
 - `CodeCompanionToolAdded` - Fired when a tool has been added to a chat
-- `CodeCompanionAgentStarted` - Fired when an agent has been initiated in the chat
-- `CodeCompanionAgentFinished` - Fired when an agent has finished all tool executions
+- `CodeCompanionToolStarted` - Fired when a tool has started executing
+- `CodeCompanionToolFinished` - Fired when a tool has finished executing
 - `CodeCompanionInlineStarted` - Fired at the start of the Inline strategy
 - `CodeCompanionInlineFinished` - Fired at the end of the Inline strategy
 - `CodeCompanionRequestStarted` - Fired at the start of any API request
@@ -1890,6 +2782,13 @@ The events that you can access are:
 - `CodeCompanionRequestFinished` - Fired at the end of any API request
 - `CodeCompanionDiffAttached` - Fired when in Diff mode
 - `CodeCompanionDiffDetached` - Fired when exiting Diff mode
+- `CodeCompanionDiffAccepted` - Fired when a user accepts a change
+- `CodeCompanionDiffRejected` - Fired when a user rejects a change
+
+There are also events that can be utilized to trigger commands from within the
+plugin:
+
+- `CodeCompanionChatRefreshCache` - Used to refresh conditional elements in the chat buffer
 
 
 EVENT DATA ~
@@ -1927,7 +2826,7 @@ Events can be hooked into as follows:
 
 >lua
     local group = vim.api.nvim_create_augroup("CodeCompanionHooks", {})
-    
+
     vim.api.nvim_create_autocmd({ "User" }, {
       pattern = "CodeCompanionInline*",
       group = group,
@@ -1940,23 +2839,55 @@ Events can be hooked into as follows:
     })
 <
 
+You can trigger an event with:
+
+>lua
+    vim.api.nvim_exec_autocmds("User", {
+      pattern = "CodeCompanionChatRefreshCache",
+    })
+<
+
 
 INLINE ASSISTANT                        *codecompanion-usage-inline-assistant*
 
-As per the |codecompanion-getting-started-inline-assistant| guide, the Inline
-Assistant enables you to code directly into a Neovim buffer. Simply run
-`:CodeCompanion <your prompt>`.
+As per the |codecompanion-getting-started-inline-assistant| guide, the inline
+assistant enables you to code directly into a Neovim buffer. Simply run
+`:CodeCompanion <your prompt>`, or make a visual selection to send that as
+context to the LLM alongside your prompt.
 
-The Assistant has knowledge of your last conversation from a chat buffer. A
-prompt such as `:CodeCompanion add the new function here` will see the
-Assistant add a code block directly into the current buffer.
-
-
-  [!TIP] To ensure the LLM has enough context the complete your request, it’s
-  recommended to use the `/buffer` prompt
 For convenience, you can call prompts from the
-|codecompanion-configuration-prompt-library| via the Assistant such as
-`:'<,'>CodeCompanion /buffer what does this file do?`.
+|codecompanion-configuration-prompt-library| via the assistant. For example,
+`:'<,'>CodeCompanion /tests` would ask the LLM to create some unit tests from
+the selected text.
+
+
+VARIABLES ~
+
+
+  [!TIP] To ensure the LLM has enough context to complete a complex ask, it’s
+  recommended to use the `buffer` variable
+The inline assistant allows you to send context alongside your prompt via the
+notion of variables:
+
+- `buffer` - shares the contents of the current buffer
+- `chat` - shares the LLM’s messages from the last chat buffer
+- `clipboard` - shares the data on your clipboard with the LLM
+
+Simply include them in your prompt. For example `:CodeCompanion #{buffer} add a
+new method to this file`. Multiple variables can be sent as part of the same
+prompt. You can even add your own custom variables as per the
+|codecompanion-configuration-inline-assistant-variables|.
+
+You can also have multiple variables a part of a prompt, for example:
+`:CodeCompanion #{buffer} #{clipboard} analyze this code`.
+
+
+ADAPTERS ~
+
+You can specify a different adapter to that in the configuration
+(`strategies.inline.adapter`) when sending an inline prompt. Simply include the
+adapter name within `<>`. For example `:<','>CodeCompanion <deepseek> can you
+refactor this?`. This approach can also be combined with variables.
 
 
 CLASSIFICATION ~
@@ -1971,7 +2902,7 @@ LLM you’ve specified in your config to determine if the response should:
 
 - `replace` - replace a visual selection you’ve made
 - `add` - be added in the current buffer at the cursor position
-- `before` to be added in the current buffer before the cursor position
+- `before` - to be added in the current buffer before the cursor position
 - `new` - be placed in a new buffer
 - `chat` - be placed in a chat buffer
 
@@ -1979,8 +2910,8 @@ LLM you’ve specified in your config to determine if the response should:
 DIFF MODE ~
 
 By default, an inline assistant prompt will trigger the diff feature, showing
-differences between the original buffer and the changes from the LLM. This can
-be turned off in your config via the `display.diff.provider` table. You can
+differences between the original buffer and the changes made by the LLM. This
+can be turned off in your config via the `display.diff.provider` table. You can
 also choose to accept or reject the LLM’s suggestions with the following
 keymaps:
 
@@ -1998,112 +2929,40 @@ Aesthetics, especially in Neovim, are highly subjective. So whilst it won’t
 set much by default, it does endeavour to allow users to hook into the plugin
 and customize the UI to their liking via |codecompanion-events|.
 
+CodeCompanion exposes a global dictionary, `_G.codecompanion_chat_metadata`
+which users can leverage throughout their configuration. Using the chat
+buffer’s buffer number as the key, the dictionary contains:
+
+- `adapter` - The `name` and `model` of the chat buffer’s current adapter
+- `context_items` - The number of context items current in the chat buffer
+- `cycles` - The number of cycles (User->LLM->User) that have taken place in the chat buffer
+- `id` - The ID of the chat buffer
+- `tokens` - The running total of tokens for the chat buffer
+- `tools` - The number of tools in the chat buffer
+
+You can also leverage `_G.codecompanion_current_context` to fetch the number of
+the buffer which the `#{buffer}` variable points at.
+
 Below are some examples of how you can customize the UI related to
 CodeCompanion.
 
 
-FIDGET.NVIM PROGRESS BY @JESSEVDP ~
+PROGRESS UPDATES WITH FIDGET.NVIM BY @JESSEVDP ~
 
-As per the discussions
-<https://github.com/olimorris/codecompanion.nvim/discussions/813>:
+As per the discussion over at #813
+<https://github.com/olimorris/codecompanion.nvim/discussions/813>.
 
->lua
-    -- lua/plugins/codecompanion.lua
-    
-    return {
-      {
-        "olimorris/codecompanion.nvim",
-        dependencies = {
-          -- ...
-          "j-hui/fidget.nvim"
-        },
-        opts = {
-          strategies = {
-            -- ...
-          },
-        },
-        init = function()
-          require("plugins.codecompanion.fidget-spinner"):init()
-        end,
-      },
-    }
-<
 
->lua
-    -- lua/plugins/codecompanion/fidget-spinner.lua
-    
-    local progress = require("fidget.progress")
-    
-    local M = {}
-    
-    function M:init()
-      local group = vim.api.nvim_create_augroup("CodeCompanionFidgetHooks", {})
-    
-      vim.api.nvim_create_autocmd({ "User" }, {
-        pattern = "CodeCompanionRequestStarted",
-        group = group,
-        callback = function(request)
-          local handle = M:create_progress_handle(request)
-          M:store_progress_handle(request.data.id, handle)
-        end,
-      })
-    
-      vim.api.nvim_create_autocmd({ "User" }, {
-        pattern = "CodeCompanionRequestFinished",
-        group = group,
-        callback = function(request)
-          local handle = M:pop_progress_handle(request.data.id)
-          if handle then
-            M:report_exit_status(handle, request)
-            handle:finish()
-          end
-        end,
-      })
-    end
-    
-    M.handles = {}
-    
-    function M:store_progress_handle(id, handle)
-      M.handles[id] = handle
-    end
-    
-    function M:pop_progress_handle(id)
-      local handle = M.handles[id]
-      M.handles[id] = nil
-      return handle
-    end
-    
-    function M:create_progress_handle(request)
-      return progress.handle.create({
-        title = " Requesting assistance (" .. request.data.strategy .. ")",
-        message = "In progress...",
-        lsp_client = {
-          name = M:llm_role_title(request.data.adapter),
-        },
-      })
-    end
-    
-    function M:llm_role_title(adapter)
-      local parts = {}
-      table.insert(parts, adapter.formatted_name)
-      if adapter.model and adapter.model ~= "" then
-        table.insert(parts, "(" .. adapter.model .. ")")
-      end
-      return table.concat(parts, " ")
-    end
-    
-    function M:report_exit_status(handle, request)
-      if request.data.status == "success" then
-        handle.message = "Completed"
-      elseif request.data.status == "error" then
-        handle.message = " Error"
-      else
-        handle.message = "󰜺 Cancelled"
-      end
-    end
-    
-    return M
-<
+INLINE SPINNER WITH FIDGET.NVIM BY @YUHUA99 ~
+
+As per the comment on #640
+<https://github.com/olimorris/codecompanion.nvim/discussions/640#discussioncomment-12866279>.
+
+
+STATUS COLUMN EXTMARKS WITH THE INLINE ASSISTANT BY @LUCOBELLIC ~
+
+As per the discussion over at #1297
+<https://github.com/olimorris/codecompanion.nvim/discussions/1297>.
 
 
 LUALINE.NVIM INTEGRATION ~
@@ -2113,10 +2972,10 @@ statusline when a request is being sent to an LLM:
 
 >lua
     local M = require("lualine.component"):extend()
-    
+
     M.processing = false
     M.spinner_index = 1
-    
+
     local spinner_symbols = {
       "⠋",
       "⠙",
@@ -2130,13 +2989,13 @@ statusline when a request is being sent to an LLM:
       "⠏",
     }
     local spinner_symbols_len = 10
-    
+
     -- Initializer
     function M:init(options)
       M.super.init(self, options)
-    
+
       local group = vim.api.nvim_create_augroup("CodeCompanionHooks", {})
-    
+
       vim.api.nvim_create_autocmd({ "User" }, {
         pattern = "CodeCompanionRequest*",
         group = group,
@@ -2149,7 +3008,7 @@ statusline when a request is being sent to an LLM:
         end,
       })
     end
-    
+
     -- Function that runs every time statusline is updated
     function M:update_status()
       if self.processing then
@@ -2159,15 +3018,20 @@ statusline when a request is being sent to an LLM:
         return nil
       end
     end
-    
+
     return M
 <
 
 
 HEIRLINE.NVIM INTEGRATION ~
 
-The plugin can also be integrated into heirline.nvim to show an icon when a
-request is being sent to an LLM:
+The plugin can also be integrated into heirline.nvim
+<https://github.com/rebelot/heirline.nvim> to show an icon when a request is
+being sent to an LLM and also to show useful meta information about the chat
+buffer.
+
+In the video at the top of this page, you can see the fidget spinner alongside
+the heirline.nvim integration below:
 
 >lua
     local CodeCompanion = {
@@ -2194,6 +3058,91 @@ request is being sent to an LLM:
         hl = { fg = "yellow" },
       },
     }
+    
+    local IsCodeCompanion = function()
+      return package.loaded.codecompanion and vim.bo.filetype == "codecompanion"
+    end
+    
+    local CodeCompanionCurrentContext = {
+      static = {
+        enabled = true,
+      },
+      condition = function(self)
+        return IsCodeCompanion() and _G.codecompanion_current_context ~= nil and self.enabled
+      end,
+      provider = function()
+        local bufname = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(_G.codecompanion_current_context), ":t")
+        return "[  " .. bufname .. " ] "
+      end,
+      hl = { fg = "gray", bg = "bg" },
+      update = {
+        "User",
+        pattern = { "CodeCompanionRequest*", "CodeCompanionContextChanged" },
+        callback = vim.schedule_wrap(function(self, args)
+          if args.match == "CodeCompanionRequestStarted" then
+            self.enabled = false
+          elseif args.match == "CodeCompanionRequestFinished" then
+            self.enabled = true
+          end
+          vim.cmd("redrawstatus")
+        end),
+      },
+    }
+    
+    local CodeCompanionStats = {
+      condition = function(self)
+        return IsCodeCompanion()
+      end,
+      static = {
+        chat_values = {},
+      },
+      init = function(self)
+        local bufnr = vim.api.nvim_get_current_buf()
+        self.chat_values = _G.codecompanion_chat_metadata[bufnr]
+      end,
+      -- Tokens block
+      {
+        condition = function(self)
+          return self.chat_values.tokens > 0
+        end,
+        RightSlantStart,
+        {
+          provider = function(self)
+            return "   " .. self.chat_values.tokens .. " "
+          end,
+          hl = { fg = "gray", bg = "statusline_bg" },
+          update = {
+            "User",
+            pattern = { "CodeCompanionChatOpened", "CodeCompanionRequestFinished" },
+            callback = vim.schedule_wrap(function()
+              vim.cmd("redrawstatus")
+            end),
+          },
+        },
+        RightSlantEnd,
+      },
+      -- Cycles block
+      {
+        condition = function(self)
+          return self.chat_values.cycles > 0
+        end,
+        RightSlantStart,
+        {
+          provider = function(self)
+            return "  " .. self.chat_values.cycles .. " "
+          end,
+          hl = { fg = "gray", bg = "statusline_bg" },
+          update = {
+            "User",
+            pattern = { "CodeCompanionChatOpened", "CodeCompanionRequestFinished" },
+            callback = vim.schedule_wrap(function()
+              vim.cmd("redrawstatus")
+            end),
+          },
+        },
+        RightSlantEnd,
+      },
+    }
 <
 
 
@@ -2214,6 +3163,12 @@ You can create your own workflows by following the
 
 CREATING ADAPTERS                  *codecompanion-extending-creating-adapters*
 
+
+  [!TIP] Does your LLM state that it is "OpenAI Compatible"? If so, good news,
+  you can extend from the `openai` adapter or use the `openai_compatible` one.
+  Something we did with the xAI
+  <https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/adapters/xai.lua>
+  adapter
 In CodeCompanion, adapters are interfaces that act as a bridge between the
 plugin’s functionality and an LLM. All adapters must follow the interface,
 below.
@@ -2221,6 +3176,9 @@ below.
 This guide is intended to serve as a reference for anyone who wishes to
 contribute an adapter to the plugin or understand the inner workings of
 existing adapters.
+
+The plugin’s in-built adapters can be found here
+<https://github.com/olimorris/codecompanion.nvim/tree/main/lua/codecompanion/adapters>.
 
 
 THE INTERFACE ~
@@ -2283,7 +3241,7 @@ comes with the plugin:
 <
 
 The key `api_key` represents the name of the variable which can be injected in
-the adapter, and the value can represent one of:
+the adapter via the `${}` notation, and the value can represent one of:
 
 - A command to execute on the user’s system
 - An environment variable from the user’s system
@@ -2400,7 +3358,7 @@ The chat buffer, which is structured like:
 
 >markdown
     ## Me
-    
+
     Explain Ruby in two words
 <
 
@@ -2465,7 +3423,7 @@ comes with some handy utility functions to work with this:
 >lua
     -- Put this at the top of your adapter
     local utils = require("codecompanion.utils.adapters")
-    
+
     handlers = {
       chat_output = function(self, data)
         data = utils.clean_streamed_data(data)
@@ -2510,7 +3468,7 @@ chat buffer, with:
         local output = {}
         ---
         local delta = json.choices[1].delta
-    
+
         if delta.content then
           output.content = delta.content
           output.role = delta.role or nil
@@ -2540,17 +3498,17 @@ we have data in our response:
     handlers = {
       chat_output = function(self, data)
         local output = {}
-    
+
         if data and data ~= "" then
           data = utils.clean_streamed_data(data)
           local ok, json = pcall(vim.json.decode, data, { luanil = { object = true } })
-    
+
           local delta = json.choices[1].delta
-    
+
           if delta.content then
             output.content = delta.content
             output.role = delta.role or nil
-    
+
             return {
               status = "success",
               output = output,
@@ -2703,11 +3661,14 @@ We’ll explore some of the options in the Copilot adapter’s schema table:
         ---@type string|fun(): string
         default = "gpt-4o-2024-08-06",
         choices = {
-          "gpt-4o-2024-08-06",
+          ["o3-mini-2025-01-31"] = { opts = { can_reason = true } },
+          ["o1-2024-12-17"] = { opts = { can_reason = true } },
+          ["o1-mini-2024-09-12"] = { opts = { can_reason = true } },
           "claude-3.5-sonnet",
+          "claude-3.7-sonnet",
+          "claude-3.7-sonnet-thought",
+          "gpt-4o-2024-08-06",
           "gemini-2.0-flash-001",
-          ["o1-preview-2024-09-12"] = { opts = { stream = false } },
-          ["o1-mini-2024-09-12"] = { opts = { stream = false } },
         },
       },
     }
@@ -2733,8 +3694,9 @@ Let’s take a look at one more schema value:
       mapping = "parameters",
       type = "number",
       default = 0,
-      condition = function(schema)
-        local model = schema.model.default
+      ---@param self CodeCompanion.Adapter
+      condition = function(self)
+        local model = self.schema.model.default
         if type(model) == "function" then
           model = model()
         end
@@ -2749,10 +3711,27 @@ Let’s take a look at one more schema value:
 <
 
 You’ll see we’ve specified a function call for the `condition` key. We’re
-simply checking that the model name doesn’t being with `o1` as these models
+simply checking that the model name doesn’t start with `o1` as these models
 don’t accept temperature as a parameter. You’ll also see we’ve specified
 a function call for the `validate` key. We’re simply checking that the value
 of the temperature is between 0 and 2.
+
+
+FUNCTION CALLING / TOOL USE ~
+
+In order to enable your adapter to make use of Function Calling
+<https://platform.openai.com/docs/guides/function-calling?api-mode=chat>, you
+need to setup some additional handlers:
+
+- `form_tools` - which transforms the tools provided by CodeCompanion into a schema supported by the adapter
+- `tools.format_tool_calls` - which formats <https://platform.openai.com/docs/guides/function-calling?api-mode=chat#handling-function-calls> the adapters tool calls and puts them into the http request
+- `tools.output_response` - which formats and outputs the adapter’s tool call so we it can be included in the chat buffer’s messages stack
+
+You will also need to ensure that `opts.tools = true` and the `chat_output`
+handler has tools included as an optional final parameter like `chat_output =
+function(self, data, tools)`. From experience, whilst many LLMs claim to
+support the OpenAI API standard for function calling, they can require some
+additional configuration to work as expected.
 
 
 CREATING PROMPTS                    *codecompanion-extending-creating-prompts*
@@ -2826,7 +3805,7 @@ Let’s take a look at how we can achieve that:
             },
             {
               role = "user",
-              content = "Please generate some HTML boilerplate for me. Return the code only and no markdown codeblocks",
+              content = "<user_prompt>Please generate some HTML boilerplate for me. Return the code only and no markdown codeblocks</user_prompt>",
             },
           },
         },
@@ -2835,7 +3814,10 @@ Let’s take a look at how we can achieve that:
 <
 
 Nice! We’ve used some careful prompting to ensure that we get HTML
-boilerplate back from the LLM. Oh…and notice that I added a key map too!
+boilerplate back from the LLM. Oh…and notice that I added a key map too! If
+you plan on using the `inline` classification, it’s recommended to put your
+prompt within `<user_prompt></user_prompt>` tags to make it explicit to the LLM
+what your ask is.
 
 
 LEVERAGING PRE-HOOKS
@@ -2849,6 +3831,7 @@ buffer and set the filetype to be html:
         strategy = "inline",
         description = "Generate some boilerplate HTML",
         opts = {
+          ---@return number
           pre_hook = function()
             local bufnr = vim.api.nvim_create_buf(true, false)
             vim.api.nvim_set_current_buf(bufnr)
@@ -2907,7 +3890,7 @@ builtin to the plugin as the `Code Advisor` action:
               role = "user",
               content = function(context)
                 local text = require("codecompanion.helpers.actions").get_code(context.start_line, context.end_line)
-    
+
                 return "I have the following code:\n\n```" .. context.filetype .. "\n" .. text .. "\n```\n\n"
               end,
               opts = {
@@ -2968,7 +3951,7 @@ advice on the code:
         role = "user",
         content = function(context)
           local text = require("codecompanion.helpers.actions").get_code(context.start_line, context.end_line)
-    
+
           return "I have the following code:\n\n```" .. context.filetype .. "\n" .. text .. "\n```\n\n"
         end,
         opts = {
@@ -3023,7 +4006,7 @@ Lets now take a look at the second prompt:
       role = "user",
       content = function(context)
         local text = require("codecompanion.helpers.actions").get_code(context.start_line, context.end_line)
-    
+
         return "I have the following code:\n\n```" .. context.filetype .. "\n" .. text .. "\n```\n\n"
       end,
       opts = {
@@ -3157,17 +4140,32 @@ system prompt with the request:
 <
 
 
-PROMPTS WITH REFERENCES
+SETTING A CUSTOM INTRO MESSAGE
 
-It can be useful to pre-load a chat buffer with references to `files`,
-`symbols` or even `urls`. This makes conversing with an LLM that much more
-productive. As per `v11.9.0`, this can now be accomplished, as per the example
-below:
+To customize the chat buffer UI, you can set a custom intro message:
 
 >lua
-    ["Test References"] = {
+    ["Your_New_Prompt"] = {
       strategy = "chat",
-      description = "Add some references",
+      description = "Your Special New Prompt",
+      opts = {
+        intro_message = "Welcome to your Special New Prompt"
+      },
+      -- Your prompts here
+    }
+<
+
+
+PROMPTS WITH CONTEXT
+
+It can be useful to pre-load a chat buffer with context from `files`, `symbols`
+or even `urls`. This makes conversing with an LLM that much more productive.
+This can now accomplished, as per the example below:
+
+>lua
+    ["Test Context"] = {
+      strategy = "chat",
+      description = "Add some context",
       opts = {
         index = 11,
         is_default = true,
@@ -3176,7 +4174,7 @@ below:
         auto_submit = false,
       },
       -- These will appear at the top of the chat buffer
-      references = {
+      context = {
         {
           type = "file",
           path = { -- This can be a string or a table of values
@@ -3221,251 +4219,713 @@ files for more complex examples.
 
 CREATING TOOLS                        *codecompanion-extending-creating-tools*
 
-In CodeCompanion, tools offer pre-defined ways for LLMs to execute actions and
-act as an Agent. Tools are added to chat buffers as participants. This guide
-walks you through the implementation of tools, enabling you to create your own.
+In CodeCompanion, tools offer pre-defined ways for LLMs to call functions on
+your machine, acting as an Agent in the process. This guide walks you through
+the implementation of tools, enabling you to create your own.
+
+In the plugin, tools are a Lua table, consisting of various handler and output
+functions, alongside a system prompt and an OpenAI compatible schema
+<https://platform.openai.com/docs/guides/function-calling?api-mode=chat>.
+
+When you add a tool to the chat buffer, this gives the LLM the knowledge to be
+able to call the tool, when required. Once called, the plugin will parse the
+LLM’s response and execute the tool accordingly, before sharing the output in
+the chat buffer.
 
 
-INTRODUCTION ~
+ARCHITECTURE ~
 
-In the plugin, tools work by sharing a system prompt with an LLM. This
-instructs them how to produce an XML markdown code block which can, in turn, be
-interpreted by the plugin to execute a command or function.
+In order to create tools, you do not need to understand the underlying
+architecture. However, for those who are curious about the implementation,
+please see the diagram below:
 
-The plugin has a tools class `CodeCompanion.Tools` which will call individual
-`CodeCompanion.Tool` such as the cmd_runner
-<https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/strategies/chat/tools/cmd_runner.lua>
-or the editor
-<https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/strategies/chat/tools/editor.lua>.
-The calling of tools is orchestrated by the `CodeCompanion.Chat` class which
-parses an LLM’s response and looks to identify any XML code blocks.
+>mermaid
+    sequenceDiagram
+        participant C as Chat Buffer
+        participant L as LLM
+        participant TS as Tool System
+        participant O as Orchestrator
+        participant T as Tool
+
+        C->>L: Prompt with tool schemas
+        L->>C: Response with tool call(s)
+
+        C->>TS: Parse LLM response
+
+        loop For each tool call detected
+            TS->>TS: Tool.resolve(tool_config)
+            TS->>TS: Add tool to queue
+        end
+
+        TS->>O: Create Orchestrator with queue
+        TS->>C: Fire "ToolsStarted" autocmd
+
+        loop While queue not empty
+            O->>O: Pop tool from queue
+            O->>O: Setup handlers and output functions
+            O->>T: handlers.setup()
+
+            Note over O,C: If approval required, prompt user
+            O->>C: User approval (if needed)
+
+            Note over O,T: If rejected/cancelled, call output handlers and continue
+            Note over O,T: If approved or no approval needed, execute tool
+
+            loop For each cmd in tool.cmds
+                O->>T: Execute function(tool_system, args, input, output_handler)
+                Note over T,O: Returns {status, data} (sync) or calls output_handler (async)
+                O->>T: output.success() OR output.error()
+                T->>C: add_tool_output()
+            end
+
+            O->>T: handlers.on_exit()
+        end
+
+        TS->>TS: reset()
+        TS->>C: Fire "ToolsFinished" autocmd
+        TS->>C: tools_done()
+<
 
 
-TOOL TYPES ~
+BUILDING YOUR FIRST TOOL ~
 
-There are two types of tools within the plugin:
+Before we begin, it’s important to familiarise yourself with the directory
+structure of the tools implementation:
 
-1. **Command-based**: These tools can execute a series of commands in the
-background using a plenary.job
-<https://github.com/nvim-lua/plenary.nvim/blob/master/lua/plenary/job.lua>.
-They’re non-blocking, meaning you can carry out other activities in Neovim
-whilst they run. Useful for heavy/time-consuming tasks.
+>
+    strategies/chat/tools
+    ├── init.lua
+    ├── orchestrator.lua
+    ├── runtime/
+    │   ├── queue.lua
+    │   ├── runner.lua
+    ├── catalog/
+    │   ├── cmd_runner.lua
+    │   ├── insert_edit_into_file.lua
+    │   ├── create_file.lua
+    │   ├── ...
+<
+
+When a tool is detected, the chat buffer sends any output to the
+`tools/init.lua` file (I will commonly refer to that as the `“tool system
+file”` throughout this document). The tool system file then parses the
+response from the LLM, identifying the tool and duly executing it.
+
+There are two types of tools that CodeCompanion can leverage:
+
+1. **Command-based**: These tools can execute a series of commands in the background using `vim.system`. They’re non-blocking, meaning you can carry out other activities in Neovim whilst they run. Useful for heavy/time-consuming tasks.
+2. **Function-based**: These tools, like insert_edit_into_file <https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/strategies/chat/tools/catalog/insert_edit_into_file.lua>, execute Lua functions directly in Neovim within the main process, one after another. They can also be executed asynchronously.
+
+For the purposes of this section of the guide, we’ll be building a simple
+function-based calculator tool that an LLM can use to do basic maths.
 
 
-2. **Function-based**: These tools, like the editor
-<https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/strategies/chat/tools/editor.lua>
-one, execute Lua functions directly in Neovim within the main process.
+TOOL STRUCTURE
 
-
-
-
-THE INTERFACE ~
-
-Tools must implement the following interface:
+All tools must implement the following structure which the bulk of this guide
+will focus on explaining:
 
 >lua
-    ---@class CodeCompanion.Tool
+    ---@class CodeCompanion.Tools.Tool
     ---@field name string The name of the tool
     ---@field cmds table The commands to execute
+    ---@field function_call table The function call from the LLM
     ---@field schema table The schema that the LLM must use in its response to execute a tool
-    ---@field system_prompt fun(schema: table): string The system prompt to the LLM explaining the tool and the schema
+    ---@field system_prompt string | fun(schema: table): string The system prompt to the LLM explaining the tool and the schema
     ---@field opts? table The options for the tool
     ---@field env? fun(schema: table): table|nil Any environment variables that can be used in the *_cmd fields. Receives the parsed schema from the LLM
-    ---@field handlers table Functions which can be called during the execution of the tool
-    ---@field handlers.setup? fun(self: CodeCompanion.Tools): any Function used to setup the tool. Called before any commands
-    ---@field handlers.approved? fun(self: CodeCompanion.Tools): boolean Function to call if an approval is needed before running a command
-    ---@field handlers.on_exit? fun(self: CodeCompanion.Tools): any Function to call at the end of all of the commands
-    ---@field output? table Functions which can be called after the command finishes
-    ---@field output.rejected? fun(self: CodeCompanion.Tools, cmd: table): any Function to call if the user rejects running a command
-    ---@field output.error? fun(self: CodeCompanion.Tools, cmd: table, error: table|string): any Function to call if the tool is unsuccessful
-    ---@field output.success? fun(self: CodeCompanion.Tools, cmd: table, output: table|string): any Function to call if the tool is successful
-    ---@field request table The request from the LLM to use the Tool
+    ---@field handlers table Functions which handle the execution of a tool
+    ---@field handlers.setup? fun(self: CodeCompanion.Tools.Tool, tools: CodeCompanion.Tools): any Function used to setup the tool. Called before any commands
+    ---@field handlers.prompt_condition? fun(self: CodeCompanion.Tools.Tool, tools: CodeCompanion.Tools, config: table): boolean Function to determine whether to show the promp to the user or not
+    ---@field handlers.on_exit? fun(self: CodeCompanion.Tools.Tool, tools: CodeCompanion.Tools): any Function to call at the end of a group of commands or functions
+    ---@field output? table Functions which handle the output after every execution of a tool
+    ---@field output.prompt fun(self: CodeCompanion.Tools.Tool, tools: CodeCompanion.Tools): string The message which is shared with the user when asking for their approval
+    ---@field output.rejected? fun(self: CodeCompanion.Tools.Tool, tools: CodeCompanion.Tools, cmd: table): any Function to call if the user rejects running a command
+    ---@field output.error? fun(self: CodeCompanion.Tools.Tool, tools: CodeCompanion.Tools, cmd: table, stderr: table, stdout?: table): any The function to call if an error occurs
+    ---@field output.success? fun(self: CodeCompanion.Tools.Tool, tools: CodeCompanion.Tools, cmd: table, stdout: table): any Function to call if the tool is successful
+    ---@field output.cancelled? fun(self: CodeCompanion.Tools.Tool, tools: CodeCompanion.Tools, cmd: table): any Function to call if the tool is cancelled
+    ---@field args table The arguments sent over by the LLM when making the request
+    ---@field tool table The tool configuration from the config file
 <
 
 
 CMDS
 
-The `cmds` table contains the list of commands or functions that will be
-executed by the `CodeCompanion.Tools` in succession.
-
 **Command-Based Tools**
 
-The `cmds` table is a collection of commands which the agent will execute one
-after another, asynchronously, using plenary.job
-<https://github.com/nvim-lua/plenary.nvim/blob/master/lua/plenary/job.lua>.
-It’s also possible to pass in environment variables (from the `env` function)
-by calling them in `${}` brackets.
-
-The now removed `code_runner` tool was setup as:
+The `cmds` table is a collection of commands which the tool system will execute
+one after another, asynchronously, using `vim.system`.
 
 >lua
     cmds = {
-      { "docker", "pull", "${lang}" },
-      {
-        "docker",
-        "run",
-        "--rm",
-        "-v",
-        "${temp_dir}:${temp_dir}",
-        "${lang}",
-        "${lang}",
-        "${temp_input}",
-      },
+      { "make", "test" },
+      { "echo", "hello" },
     }
 <
 
-In this example, the `CodeCompanion.Tools` class will call each table in order
-and replace the variables with output from the `env` function (more on that
-below).
+In this example, the plugin will execute `make test` followed by `echo hello`.
+After each command executes, the plugin will automatically send the output to a
+corresponding table on the tool system file. If the command ran with success
+the output will be written to `stdout`, otherwise it will go to `stderr`.
+We’ll be covering how you access that data in the output section below.
 
-Using the `handlers.setup()` function, it’s also possible to create commands
-dynamically like in the `cmd_runner` tool.
-
-**Function-based Tools**
-
-Function-based tools use the `cmds` table to define functions that will be
-executed one after another:
+It’s also possible to pass in environment variables (from the `env` function)
+by use of ${} brackets. The now removed `@code_runner` tool used them as below:
 
 >lua
-      cmds = {
-        ---@param self CodeCompanion.Tools The Tools object
-        ---@param input any The output from the previous function call
-        function(self, input)
-          return "Hello, World"
-        end,
-        ---Ensure the final function returns the status and the output
-        ---@param self CodeCompanion.Tools The Tools object
-        ---@param input any The output from the previous function call
-        ---@return { status: string, msg: string }
-        function(self, input)
-         print(input) -- prints "Hello, World"
-        end,
-      }
-<
-
-In this example, the first function will be called by the `CodeCompanion.Tools`
-class and its output will be captured and passed onto the final function call.
-It should be noted that the last function call in the `cmds` block should
-return a table with the status (either `success` or `error`) and a msg.
-
-
-SCHEMA
-
-The schema represents the structure of the response that the LLM must follow in
-order to call the tool.
-
-In the `code_runner` tool, the schema is defined as a Lua table and then
-converted into XML in the chat buffer:
-
->lua
-    schema = {
-      name = "code_runner",
-      parameters = {
-        inputs = {
-          lang = "python",
-          code = "print('Hello World')",
+    cmds = {
+        { "docker", "pull", "${lang}" },
+        {
+          "docker",
+          "run",
+          "--rm",
+          "-v",
+          "${temp_dir}:${temp_dir}",
+          "${lang}",
+          "${lang}",
+          "${temp_input}",
         },
       },
     },
-<
-
-
-ENV
-
-You can setup environment variables that other functions can access in the
-`env` function. This function receives the parsed schema which is requested by
-the LLM when it follows the schema’s structure.
-
-For the Code Runner agent, the environment was setup as:
-
->lua
-    ---@param schema table
-    env = function(schema)
+    ---@param self CodeCompanion.Tools.Tool
+    ---@return table
+    env = function(self)
       local temp_input = vim.fn.tempname()
       local temp_dir = temp_input:match("(.*/)")
-      local lang = schema.parameters.inputs.lang
-      local code = schema.parameters.inputs.code
-    
+      local lang = self.args.lang
+      local code = self.args.code
+
       return {
         code = code,
         lang = lang,
         temp_dir = temp_dir,
         temp_input = temp_input,
       }
-    end
+    end,
 <
 
-Note that a table has been returned that can then be used in other functions.
+
+  [!IMPORTANT] Using the `handlers.setup()` function, it’s also possible to
+  create commands dynamically like in the cmd_runner
+  <https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/strategies/chat/tools/catalog/cmd_runner.lua>
+  tool.
+**Function-based Tools**
+
+Function-based tools use the `cmds` table to define functions that will be
+executed one after another. Each function has four parameters, itself, the
+actions request by the LLM, any input from a previous function call and a
+`output_handler` callback for async execution. The `output_handler` handles the
+result for an asynchronous tool. For a synchronous tool (like the calculator)
+you can ignore it. For the purpose of our calculator example:
+
+>lua
+    cmds = {
+      ---@param self CodeCompanion.Tool.Calculator The Calculator tool
+      ---@param args table The arguments from the LLM's tool call
+      ---@param input? any The output from the previous function call
+      ---@return nil|{ status: "success"|"error", data: string }
+      function(self, args, input)
+        -- Get the numbers and operation requested by the LLM
+        local num1 = tonumber(args.num1)
+        local num2 = tonumber(args.num2)
+        local operation = args.operation
+
+        -- Validate input
+        if not num1 then
+          return { status = "error", data = "First number is missing or invalid" }
+        end
+
+        if not num2 then
+          return { status = "error", data = "Second number is missing or invalid" }
+        end
+
+        if not operation then
+          return { status = "error", data = "Operation is missing" }
+        end
+
+        -- Perform the calculation
+        local result
+        if operation == "add" then
+          result = num1 + num2
+        elseif operation == "subtract" then
+          result = num1 - num2
+        elseif operation == "multiply" then
+          result = num1 * num2
+        elseif operation == "divide" then
+          if num2 == 0 then
+            return { status = "error", data = "Cannot divide by zero" }
+          end
+          result = num1 / num2
+        else
+          return { status = "error", data = "Invalid operation: must be add, subtract, multiply, or divide" }
+        end
+
+        return { status = "success", data = result }
+      end,
+    },
+<
+
+For a synchronous tool, you only need to `return` the result table as
+demonstrated. However, if you need to invoke some asynchronous actions in the
+tool, you can use the `output_handler` to submit any results to the
+orchestrator, which will then invoke `output` functions to handle the results:
+
+>lua
+    cmds = {
+      function(self, args, input, output_handler)
+        -- This is for demonstration only
+        vim.lsp.client.request(lsp_method, lsp_param, function(err, result, _, _)
+          self.tools.chat:add_message({ role = "user", content = vim.json.encode(result) })
+          output_handler({ status = "success", data = result })
+        end, buf_nr)
+      end
+    }
+<
+
+Note that:
+
+1. The `output_handler` will be called only once. Subsequent calls will be discarded;
+2. A tool function should EITHER return the result table (synchronous), OR call the `output_handler` with the result table as the only argument (asynchronous), but not both.
+If a function tries to both return the result and call the `output_handler`, the result will be undefined because there’s no guarantee which output will be handled first.
+
+Similarly with command-based tools, the output is written to the `stdout` or
+`stderr` tables on the tool system file. However, with function-based tools,
+the user must manually specify the outcome of the execution which in turn
+redirects the output to the correct table:
+
+>lua
+    return { status = "error", data = "Invalid operation: must be add, subtract, multiply, or divide" }
+<
+
+Will cause execution of the tool to stop and populate `stderr` on the tool
+system file.
+
+>lua
+    return { status = "success", data = result }
+<
+
+Will populate the `stdout` table on the tool system file and allow for
+execution to continue.
+
+
+SCHEMA
+
+The function call that the LLM has sent, is parsed and sent to the `args`
+parameter of any function you’ve created in
+|codecompanion-extending-tools.html-cmds|, as a JSON object which is then
+converted to Lua via `vim.json.decode`. If the LLM has done its job correctly,
+the Lua table should be the representation of what you’ve described in the
+schema. In summary, the schema represents the structure of the response that
+the LLM must follow in order to call the tool.
+
+For a tool to function correctly, your tool requires an OpenAI compatible
+<https://platform.openai.com/docs/guides/function-calling?api-mode=chat>
+schema. For our basic calculator tool, which does an operation on two numbers,
+the schema could look something like:
+
+>lua
+    schema = {
+      type = "function",
+      ["function"] = {
+        name = "calculator",
+        description = "Perform simple mathematical operations on a user's machine",
+        parameters = {
+          type = "object",
+          properties = {
+            num1 = {
+              type = "integer",
+              description = "The first number in the calculation",
+            },
+            num2 = {
+              type = "integer",
+              description = "The second number in the calculation",
+            },
+            operation = {
+              type = "string",
+              enum = { "add", "subtract", "multiply", "divide" },
+              description = "The mathematical operation to perform on the two numbers",
+            },
+          },
+          required = {
+            "num1",
+            "num2",
+            "operation"
+          },
+          additionalProperties = false,
+        },
+        strict = true,
+      },
+    },
+<
 
 
 SYSTEM_PROMPT
 
-In the plugin, LLMs are given knowledge about a tool via a system prompt. This
-gives the LLM knowledge of the tool alongside the instructions (via the schema)
-required to execute it.
+In the plugin, LLMs are given knowledge about a tool and how it can be used via
+the schema. However, for a particularly complicated tool, you can choose to
+include a system prompt. This is something that CodeCompanion does for the
+`insert_edit_into_file` tool.
 
-For the Code Runner agent, the `system_prompt` table was:
+
+  [!TIP] From experience, a system prompt should be used sparingly. It’s often
+  an indication that your tool is too complicated and should be split out into
+  multiple tools.
+For our calculator tool, we’re going to use a `system_prompt` just to
+demonstrate the functionality:
 
 >lua
-      system_prompt = function(schema)
-        return string.format(
-          [[### You have gained access to a new tool!
-    
-    Name: Code Runner
-    Purpose: The tool enables you to execute any code that you've created
-    Why: This enables yourself and the user to validate that the code you've created is working as intended
-    Usage: To use this tool, you need to return an XML markdown code block (with backticks). Consider the following example which prints 'Hello World' in Python:
-    
-    ```xml
-    %s
-    ```
-    
-    You must:
-    - Ensure the code you're executing will be able to parsed as valid XML
-    - Ensure the code you're executing is safe
-    - Ensure the code you're executing is concise
-    - Ensure the code you're executing is relevant to the conversation
-    - Ensure the code you're executing is not malicious]],
-          xml2lua.toXml(schema, "tool")
-        )
+    system_prompt = [[## Calculator Tool (`calculator`)
+
+    ## CONTEXT
+    - You have access to a calculator tool running within CodeCompanion, in Neovim.
+    - You can use it to add, subtract, multiply or divide two numbers.
+
+    ### OBJECTIVE
+    - Do a mathematical operation on two numbers when the user asks
+
+    ### RESPONSE
+    - Always use the structure above for consistency.
+    ]],
 <
 
 
 HANDLERS
 
-The `handlers` table consists of three methods.
+The `handlers` table contains two functions that are executed before and after
+a tool completes:
 
-The `setup` method is called before any of the `cmds` are called. This is
-useful if you wish to set the `cmds` dynamically on the tool itself, like in
-the `cmd_runner` tool.
+1. `setup` - Is called **before** anything in the |codecompanion-extending-tools.html-cmds| and |codecompanion-extending-tools.html-output| table. This is useful if you wish to set the cmds dynamically on the tool itself, like in the @cmd_runner <https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/strategies/chat/tools/catalog/cmd_runner.lua> tool.
+2. `on_exit` - Is called **after** everything in the |codecompanion-extending-tools.html-cmds| and |codecompanion-extending-tools.html-output| table.
+3. `prompt_condition` - Is called **before** anything in the |codecompanion-extending-tools.html-cmds| and |codecompanion-extending-tools.html-output| table and is used to determine `if` the user should be prompted for approval. This is used in the `@insert_edit_into_file` tool to allow users to determine if they’d like to apply an approval to `buffer` or `file` edits.
 
-The `approved` method, which must return a boolean, contains logic to prompt
-the user for their approval prior to a command being executed. This is used in
-both the `files` and `cmd_runner` tool to allow the user to validate the
-actions the LLM is proposing to take.
+For the purposes of our calculator, let’s just return some notifications so
+you can see the tool system and tool flow:
 
-Finally, the `on_exit` method is called after all of the `cmds` have been
-executed.
+>lua
+    handlers = {
+      ---@param self CodeCompanion.Tool.Calculator
+      ---@param tools CodeCompanion.Tools The tool object
+      setup = function(self, tools)
+        return vim.notify("setup function called", vim.log.levels.INFO)
+      end,
+      ---@param self CodeCompanion.Tool.Calculator
+      ---@param tools CodeCompanion.Tools
+      on_exit = function(self, tools)
+        return vim.notify("on_exit function called", vim.log.levels.INFO)
+      end,
+    },
+<
 
+
+  [!TIP] The chat buffer can be accessed via `tools.chat` in the handler and
+  output tables
 
 OUTPUT
 
-The `output` table consists of three methods.
+The `output` table enables you to manage and format output from the execution
+of the |codecompanion-extending-tools.html-cmds|. It contains four functions:
 
-The `rejected` method is called when a user rejects to approve the running of a
-command. This method is useful of informing the LLM of the rejection.
+1. `success` - Is called after `every` successful execution of a command/function. This can be a useful way of notifying the LLM of the success.
+2. `error` - Is called when an error occurs whilst executing a command/function. It will only ever be called once as the whole execution of the |codecompanion-extending-tools.html-cmds| is halted. This can be a useful way of notifying the LLM of the failure.
+3. `prompt` - Is called when user approval to execute the |codecompanion-extending-tools.html-cmds| is required. It forms the message prompt which the user is asked to confirm or reject.
+4. `rejected` - Is called when a user rejects the approval to run the |codecompanion-extending-tools.html-cmds|. This method is used to inform the LLM of the rejection.
 
-The `error` method is called to notify the LLM of an error when executing a
-command.
+Let’s consider how me might implement this for our calculator tool:
 
-And finally, the `success` method is called to notify the LLM of a successful
-execution of a command.
+>lua
+    output = {
+      ---@param self CodeCompanion.Tool.Calculator
+      ---@param tools CodeCompanion.Tools
+      ---@param cmd table The command that was executed
+      ---@param stdout table
+      success = function(self, tools, cmd, stdout)
+        local chat = tools.chat
+        return chat:add_tool_output(self, tostring(stdout[1]))
+      end,
+      ---@param self CodeCompanion.Tool.Calculator
+      ---@param tools CodeCompanion.Tools
+      ---@param cmd table
+      ---@param stderr table The error output from the command
+      error = function(self, tools, cmd, stderr)
+        return vim.notify("An error occurred", vim.log.levels.ERROR)
+      end,
+    },
+<
+
+The `add_tool_output` method is designed to make it as easy as possible for
+tool authors to update the message history on the chat buffer:
+
+>lua
+    ---Add the output from a tool to the message history and a message to the UI
+    ---@param tool table The Tool that was executed
+    ---@param for_llm string The output to share with the LLM
+    ---@param for_user? string The output to share with the user. If empty will use the LLM's output
+    ---@return nil
+    function Chat:add_tool_output(tool, for_llm, for_user)
+      -- Omitted for brevity
+    end
+<
+
+The `for_llm` parameter is the string message that will be shared with the LLM
+as part of the message history in the chat buffer, this is not made visible to
+the user. The `for_user` parameter allows tool authors to customize the visible
+output in the chat buffer, but if this is nil then the `for_llm` string is
+used.
 
 
-REQUEST
+RUNNING THE CALCULATOR TOOL
 
-The request table is populated at runtime and contains the parsed XML that the
-LLM has requested to run.
+If we put this all together in our config:
+
+>lua
+    require("codecompanion").setup({
+      strategies = {
+        chat = {
+          tools = {
+            calculator = {
+              description = "Perform calculations",
+              callback = {
+                name = "calculator",
+                cmds = {
+                  ---@param self CodeCompanion.Tool.Calculator The Calculator tool
+                  ---@param args table The arguments from the LLM's tool call
+                  ---@param input? any The output from the previous function call
+                  ---@return nil|{ status: "success"|"error", data: string }
+                  function(self, args, input)
+                    -- Get the numbers and operation requested by the LLM
+                    local num1 = tonumber(args.num1)
+                    local num2 = tonumber(args.num2)
+                    local operation = args.operation
+
+                    -- Validate input
+                    if not num1 then
+                      return { status = "error", data = "First number is missing or invalid" }
+                    end
+
+                    if not num2 then
+                      return { status = "error", data = "Second number is missing or invalid" }
+                    end
+
+                    if not operation then
+                      return { status = "error", data = "Operation is missing" }
+                    end
+
+                    -- Perform the calculation
+                    local result
+                    if operation == "add" then
+                      result = num1 + num2
+                    elseif operation == "subtract" then
+                      result = num1 - num2
+                    elseif operation == "multiply" then
+                      result = num1 * num2
+                    elseif operation == "divide" then
+                      if num2 == 0 then
+                        return { status = "error", data = "Cannot divide by zero" }
+                      end
+                      result = num1 / num2
+                    else
+                      return {
+                        status = "error",
+                        data = "Invalid operation: must be add, subtract, multiply, or divide",
+                      }
+                    end
+
+                    return { status = "success", data = result }
+                  end,
+                },
+                system_prompt = [[## Calculator Tool (`calculator`)
+
+    ## CONTEXT
+    - You have access to a calculator tool running within CodeCompanion, in Neovim.
+    - You can use it to add, subtract, multiply or divide two numbers.
+
+    ### OBJECTIVE
+    - Do a mathematical operation on two numbers when the user asks
+
+    ### RESPONSE
+    - Always use the structure above for consistency.
+    ]],
+
+                schema = {
+                  type = "function",
+                  ["function"] = {
+                    name = "calculator",
+                    description = "Perform simple mathematical operations on a user's machine",
+                    parameters = {
+                      type = "object",
+                      properties = {
+                        num1 = {
+                          type = "integer",
+                          description = "The first number in the calculation",
+                        },
+                        num2 = {
+                          type = "integer",
+                          description = "The second number in the calculation",
+                        },
+                        operation = {
+                          type = "string",
+                          enum = { "add", "subtract", "multiply", "divide" },
+                          description = "The mathematical operation to perform on the two numbers",
+                        },
+                      },
+                      required = {
+                        "num1",
+                        "num2",
+                        "operation",
+                      },
+                      additionalProperties = false,
+                    },
+                    strict = true,
+                  },
+                },
+                handlers = {
+                  ---@param self CodeCompanion.Tool.Calculator
+                  ---@param tools CodeCompanion.Tools The tool object
+                  setup = function(self, tools)
+                    return vim.notify("setup function called", vim.log.levels.INFO)
+                  end,
+                  ---@param self CodeCompanion.Tool.Calculator
+                  ---@param tools CodeCompanion.Tools
+                  on_exit = function(self, tools)
+                    return vim.notify("on_exit function called", vim.log.levels.INFO)
+                  end,
+                },
+                output = {
+                  ---@param self CodeCompanion.Tool.Calculator
+                  ---@param tools CodeCompanion.Tools
+                  ---@param cmd table The command that was executed
+                  ---@param stdout table
+                  success = function(self, tools, cmd, stdout)
+                    local chat = tools.chat
+                    return chat:add_tool_output(self, tostring(stdout[1]))
+                  end,
+                  ---@param self CodeCompanion.Tool.Calculator
+                  ---@param tools CodeCompanion.Tools
+                  ---@param cmd table
+                  ---@param stderr table The error output from the command
+                  error = function(self, tools, cmd, stderr)
+                    return vim.notify("An error occurred", vim.log.levels.ERROR)
+                  end,
+                },
+              },
+            },
+          },
+        }
+      }
+    })
+<
+
+and with the prompt:
+
+>
+    Use the @{calculator} tool for 100*50
+<
+
+You should see: `5000`, in the chat buffer.
+
+
+ADDING IN USER APPROVALS
+
+A big concern for users when they create and deploy their own tools is `“what
+if an LLM does something I’m not aware of or I don’t approve?”`. To that
+end, CodeCompanion tries to make it easy for a user to be the "human in the
+loop" and approve tool use before execution.
+
+To enable this for any tool, simply add the `requires_approval = true` in a
+tool’s `opts` table:
+
+>lua
+    require("codecompanion").setup({
+      strategies = {
+        chat = {
+          tools = {
+            calculator = {
+              description = "Perform calculations",
+              callback = "as above",
+              opts = {
+                requires_approval = true,
+              },
+            }
+          }
+        }
+      }
+    })
+<
+
+
+  [!NOTE] `opts.requires_approval` can also be a function that receives the tool
+  and tool system classes as parameters
+To account for the user being prompted for an approval, we can add a
+`output.prompt` to the tool:
+
+>lua
+    output = {
+      -- success and error functions remain the same ...
+
+      ---The message which is shared with the user when asking for their approval
+      ---@param self CodeCompanion.Tool.Calculator
+      ---@param tools CodeCompanion.Tools
+      ---@return string
+      prompt = function(self, tools)
+        return string.format(
+          "Perform the calculation `%s`?",
+          self.args.num1 .. " " .. self.args.operation .. " " .. self.args.num2
+        )
+      end,
+    },
+<
+
+This will notify the user with the message: `Perform the calculation 100
+multiply 50?`. The user can choose to proceed, reject or cancel. The latter
+will cancel any tools from running.
+
+You can also customize the output if a user rejects the approval or cancels the
+tool execution:
+
+>lua
+    output = {
+      -- success, error and prompt functions remain the same ...
+
+      ---Rejection message back to the LLM
+      ---@param self CodeCompanion.Tool.Calculator
+      ---@param tools CodeCompanion.Tools
+      ---@param cmd table
+      ---@return nil
+      rejected = function(self, tools, cmd)
+        tools.chat:add_tool_output(self, "The user declined to run the calculator tool")
+      end,
+
+      ---Cancellation message back to the LLM
+      ---@param self CodeCompanion.Tool.Calculator
+      ---@param tools CodeCompanion.Tools
+      ---@param cmd table
+      ---@return nil
+      cancelled = function(self, tools, cmd)
+        tools.chat:add_tool_output(self, "The user cancelled the execution of the calculator tool")
+      end,
+    },
+<
+
+
+OTHER TIPS ~
+
+
+USE_HANDLERS_ONCE
+
+If an LLM calls multiple tools in the same response, it’s possible that the
+same tool may be called in succession. If you’d like to ensure that the
+handler functions (`setup` and `on_exit`) are only called once, you can set
+this in the `opts` table in the tool itself:
+
+>lua
+    return {
+      name = "editor",
+      opts = {
+        use_handlers_once = true,
+      },
+      -- More code follows...
+    }
+<
 
 
 CREATING WORKFLOWS                *codecompanion-extending-creating-workflows*
@@ -3598,20 +5058,20 @@ Let’s breakdown the prompts in that workflow:
           content = function()
             -- Leverage auto_tool_mode which disables the requirement of approvals and automatically saves any edited buffer
             vim.g.codecompanion_auto_tool_mode = true
-    
+
             -- Some clear instructions for the LLM to follow
             return [[### Instructions
-    
+
     Your instructions here
-    
+
     ### Steps to Follow
-    
+
     You are required to write code following the instructions provided above and test the correctness by running the designated test suite. Follow these steps exactly:
-    
-    1. Update the code in #buffer{watch} using the @editor tool
-    2. Then use the @cmd_runner tool to run the test suite with `<test_cmd>` (do this after you have updated the code)
+
+    1. Update the code in #{buffer}{watch} using the @{insert_edit_into_file} tool
+    2. Then use the @{cmd_runner} tool to run the test suite with `<test_cmd>` (do this after you have updated the code)
     3. Make sure you trigger both tools in the same response
-    
+
     We'll repeat this cycle until the tests pass. Ensure no deviations from these steps.]]
           end,
         },
@@ -3622,8 +5082,8 @@ Let’s breakdown the prompts in that workflow:
 
 The first prompt in a workflow should set the ask of the LLM and provide clear
 instructions. In this case, we’re giving the LLM access to the
-|codecompanion-usage-chat-buffer-agents.html-editor| and
-|codecompanion-usage-chat-buffer-agents.html-cmd-runner| tools to edit a buffer
+|codecompanion-usage-chat-buffer-tools.html-files| and
+|codecompanion-usage-chat-buffer-tools.html-cmd-runner| tools to edit a buffer
 and run tests, respectively.
 
 We’re giving the LLM knowledge of the buffer with the `#buffer` variable and
@@ -3644,11 +5104,11 @@ Now let’s look at how we trigger the automated reflection prompts:
             opts = { auto_submit = true },
             -- Scope this prompt to only run when the cmd_runner tool is active
             condition = function()
-              return vim.g.codecompanion_current_tool == "cmd_runner"
+              return _G.codecompanion_current_tool == "cmd_runner"
             end,
             -- Repeat until the tests pass, as indicated by the testing flag
             repeat_until = function(chat)
-              return chat.tool_flags.testing == true
+              return chat.tools.flags.testing == true
             end,
             content = "The tests have failed. Can you edit the buffer and run the test suite again?",
           },
@@ -3661,13 +5121,13 @@ Now there’s a little bit more to unpack in this prompt. Firstly, we’re
 automatically submitting the prompt to the LLM to save the user some time and
 keypresses. Next, we’re scoping the prompt to only be sent to the chat buffer
 if the currently active tool is the
-|codecompanion-usage-chat-buffer-agents.html-cmd-runner|.
+|codecompanion-usage-chat-buffer-tools.html-cmd-runner|.
 
 We’re also leveraging a function called `repeat_until`. This ensures that the
 prompt is always attached to the chat buffer until a condition is met. In this
 case, until the tests pass. In the
-|codecompanion-usage-chat-buffer-agents.html-cmd-runner| tool, we ask the LLM
-to pass a flag if it detects a test suite is being run. The plugin picks up on
+|codecompanion-usage-chat-buffer-tools.html-cmd-runner| tool, we ask the LLM to
+pass a flag if it detects a test suite is being run. The plugin picks up on
 that flag and puts the test outcome into the chat buffer class as a flag.
 
 Finally, we’re letting the LLM know that the tests failed, and asking it to
@@ -3731,118 +5191,109 @@ sits in a `codecompanion-workspace.json` file in the root of the current
 working directory. For the purposes of this guide, the file will be referred to
 as the `workspace file`.
 
+For the origin of workspaces in CodeCompanion, and why I settled on this
+design, please see the original
+<https://github.com/olimorris/codecompanion.nvim/discussions/705> announcement.
+
 
 STRUCTURE ~
 
-Below is an example workspace file for this plugin:
+The workspace file primarily consists of a groups array and data objects. A
+group defines a specific feature or functionality within the code base, which
+is made up of a number of individual data objects. These objects are simply a
+reference to code, which could be in the form of a file, a symbolic outline, or
+a URL.
+
+The exact JSON schema for a workspace file can be seen here
+<https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/workspace-schema.json>
+and below is an extract of CodeCompanion’s own workspace file:
 
 >json
     {
       "name": "CodeCompanion.nvim",
       "version": "1.0.0",
-      "workspace_spec": "1.0",
-      "description": "An example workspace file",
-      "system_prompt": "CodeCompanion.nvim is an AI-powered productivity tool integrated into Neovim, designed to enhance the development workflow by seamlessly interacting with various large language models (LLMs). It offers features like inline code transformations, code creation, refactoring, and supports multiple LLMs such as OpenAI, Anthropic, and Google Gemini, among others. With tools for variable management, agents, and custom workflows, CodeCompanion.nvim streamlines coding tasks and facilitates intelligent code assistance directly within the Neovim editor",
+      "system_prompt": "CodeCompanion.nvim is an AI-powered productivity tool integrated into Neovim, designed to enhance the development workflow by seamlessly interacting with various large language models (LLMs). It offers features like inline code transformations, code creation, refactoring, and supports multiple LLMs such as OpenAI, Anthropic, and Google Gemini, among others. With tools for variable management, agents, and custom workflows, CodeCompanion.nvim streamlines coding tasks and facilitates intelligent code assistance directly within the Neovim editor.",
       "groups": [
         {
           "name": "Chat Buffer",
-          "system_prompt": "...",
+          "system_prompt": "I've grouped a number of files together into a group I'm calling \"${group_name}\". The chat buffer is a Neovim buffer which allows a user to interact with an LLM. The buffer is formatted as Markdown with a user's content residing under a H2 header. The user types their message, saves the buffer and the plugin then uses Tree-sitter to parse the buffer, extracting the contents and sending to an adapter which connects to the user's chosen LLM. The response back from the LLM is streamed into the buffer under another H2 header. The user is then free to respond back to the LLM.\n\nBelow are the relevant files which we will be discussing:\n\n${group_files}",
           "opts": {
             "remove_config_system_prompt": true
           },
-          "files": [
-            {
-              "description": "...",
-              "path": "..."
-            }
-          ],
-          "symbols": [
-            {
-              "description": "...",
-              "path": "..."
-            },
-          ]
+          "data": ["chat-buffer-init", "chat-context", "chat-watchers"]
         },
-      ]
+      ],
+      "data": {
+        "chat-buffer-init": {
+          "type": "file",
+          "path": "lua/codecompanion/strategies/chat/init.lua",
+          "description": "The `${filename}` file is the entry point for the chat strategy. All methods directly relating to the chat buffer reside here."
+        },
+        "chat-context": {
+          "type": "symbols",
+          "path": "lua/codecompanion/strategies/chat/context.lua",
+          "description": "Context is files, buffers, symbols or URLs that are shared with an LLM to provide additional context. The `${filename}` is where this logic sits and I've shared its symbolic outline below."
+        },
+        "chat-watchers": {
+          "type": "symbols",
+          "path": "lua/codecompanion/strategies/chat/watchers.lua",
+          "description": "A watcher is when a user has toggled a specific buffer to be watched. When a message is sent to the LLM by the user, any changes made to the watched buffer are also sent, giving the LLM up to date context. The `${filename}` is where this logic sits and I've shared its symbolic outline below."
+        },
+      }
     }
 <
 
-- The `description` value contains the high-level description of the workspace file. This is **not** sent to the LLM by default
-- The `system_prompt` value contains text that will be sent to the LLM as a system prompt
-- The `remove_config_system_prompt` key ensures the plugin’s default system prompt (as defined in the user’s config) is
-    removed from the chat buffer
-- The `groups` array contains the grouping of files and symbols that can be shared with the LLM. In this example we just have one group, the `Chat Buffer`
-- The `version` and `workspace_spec` are currently unused
+- The `system_prompt` value contains the prompt that will be sent to the LLM as a system prompt
+- The `groups` array contains the grouping of data that will be shared with the LLM.
+- The `data` object contains the files that will be shared as part of the group
 
-
-  [!INFO] When a user selects a group to load, the workspace slash command will
-  iterate through the group adding the description first and then sequentially
-  adding the files and symbols. For the latter two, their description is added
-  first, before their content.
-
-SYSTEM PROMPTS
-
-Currently, workspaces allow for system prompts to exist at the top-level of the
-workspace file and at a group level. The plugin will always insert top-level
-system prompts at the first index in the messages table in the chat buffer. Any
-group system prompts will be added afterwards.
+When a user leverages the workspace slash command in the chat buffer, the
+high-level system prompt is added as a message, followed by the system prompt
+from the group. After that, the individual items in the data array on the group
+are added along with their descriptions as a regular user prompt.
 
 
 GROUPS ~
 
 Groups are the core of the workspace file. They are where logical groupings of
-files and/or symbols are defined. Exploring the `Chat Buffer` group in detail:
+data are defined. Exploring the `Chat Buffer` group in detail:
 
 >json
     {
       "name": "Chat Buffer",
       "system_prompt": "I've grouped a number of files together into a group I'm calling \"${group_name}\". The chat buffer is a Neovim buffer which allows a user to interact with an LLM. The buffer is formatted as Markdown with a user's content residing under a H2 header. The user types their message, saves the buffer and the plugin then uses Tree-sitter to parse the buffer, extracting the contents and sending to an adapter which connects to the user's chosen LLM. The response back from the LLM is streamed into the buffer under another H2 header. The user is then free to respond back to the LLM.\n\nBelow are the relevant files which we will be discussing:\n\n${group_files}",
-      "description": "You could also add a description here which will be added as a user prompt",
       "opts": {
         "remove_config_system_prompt": true
       },
-      "vars": {
-        "base_dir": "lua/codecompanion/strategies/chat"
-      },
-      "files": [
-        {
-          "description": "The `${filename}` file is the entry point for the chat strategy. All methods directly relating to the chat buffer reside here.",
-          "path": "${base_dir}/init.lua"
-        }
-      ],
-      "symbols": [
-        {
-          "description": "References are files, buffers, symbols or URLs that are shared with an LLM to provide additional context. The `${filename}` is where this logic sits and I've shared its symbolic outline below.",
-          "path": "${base_dir}/references.lua"
-        },
-        {
-          "description": "A watcher is when a user has toggled a specific buffer to be watched. When a message is sent to the LLM by the user, any changes made to the watched buffer are also sent, giving the LLM up to date context. The `${filename}` is where this logic sits and I've shared its symbolic outline below.",
-          "path": "${base_dir}/watchers.lua"
-        }
-      ],
-      "urls": [
-        {
-          "ignore_cache": false,
-          "description": "The plugin uses Mini.test for its testing. Below is the Mini.Test documentation:",
-          "url": "https://raw.githubusercontent.com/echasnovski/mini.nvim/refs/heads/main/TESTING.md"
-        },
-        {
-          "auto_restore_cache": true,
-          "description": "I've also included a link to my README:",
-          "url": "https://raw.githubusercontent.com/olimorris/codecompanion.nvim/refs/heads/main/doc/codecompanion.txt"
-        }
-      ],
+      "data": ["chat-buffer-init", "chat-context", "chat-watchers"]
     }
 <
 
 There’s a lot going on in there:
 
 - Firstly, the `system_prompt` within the group is a way of adding to the main, workspace system prompt
-- The `${group_name}` variable provides the name of the current group
-- The `${group_files}` variable contains a list of all the files and symbols in the group
-- The `vars` object is a way of creating variables that can be referenced throughout the files and symbols arrays
-- Each object in the files/symbols array can be a string which defaults to a path, or can be an object containing a
-    description and the path
+- The `remove_config_system_prompt` is a way of telling the plugin to exclude its own, default system prompt
+
+Let’s also explore one of the `data` objects in detail:
+
+>json
+    {
+      "data": {
+        "chat-buffer-init": {
+          "type": "file",
+          "path": "lua/codecompanion/strategies/chat/init.lua",
+          "description": "The `${filename}` file is the entry point for the chat strategy. All methods directly relating to the chat buffer reside here."
+        }
+      }
+    }
+<
+
+- We’re specifying a |codecompanion-extending-workspace.html-data-types| of `file` which is explained in more detail below. The type can be one of `file`, `symbols` or `url`
+- We’re outlining the `path` to the file within the current working directory
+- We’re providing description which gets sent alongside the contents of the file as part of a user prompt. We’re also leveraging a `${filename}` variable which is explained in more detail in the |codecompanion-extending-workspace.html-variables| section below
+
+
+DATA TYPES ~
 
 
 FILES
@@ -3850,6 +5301,9 @@ FILES
 When `files` are defined, their entire content is shared with the LLM alongside
 the description. This is useful for files where a deep understanding of how
 they function is required. Of course, this can consume significant tokens.
+CodeCompanion will automatically detect if a file is open in Neovim, as a
+buffer, and load it as such. This makes it more convenient to leverage watchers
+and pins and keep an LLM updated when you modify the contents.
 
 
 SYMBOLS
@@ -3863,14 +5317,14 @@ symbolic outline of files, capturing:
 - File/library imports
 - Start/end lines for each symbol
 
-By tagging the `files` tool, the LLM can request specific line ranges from
-these symbols - a cost-effective alternative to sharing entire files.
+Alongside the `@files` tool group, the LLM can request specific line ranges
+from these symbols - a cost-effective alternative to sharing entire files.
 
 
 URLS
 
 Workspace files also support the loading of data from URLs. When loading a URL,
-the `fetch` slash command adapter retrieves the data. The plugin:
+the `/fetch` slash command adapter retrieves the data. The plugin:
 
 - Caches URL data to disk by default
 - Prompts before restoring from cache
@@ -3878,18 +5332,276 @@ the `fetch` slash command adapter retrieves the data. The plugin:
     - `"ignore_cache": true` to never use cache
     - `"auto_restore_cache": true` to always use cache without prompting
 
+An example of using the configuration options:
+
+>json
+    {
+      "minitest-docs": {
+        "type": "url",
+        "path": "https://raw.githubusercontent.com/echasnovski/mini.nvim/refs/heads/main/TESTING.md",
+        "description": "Below is the Mini.Test documentation:",
+        "opts": {
+          "auto_restore_cache": true
+        }
+      }
+    }
+<
+
 
 VARIABLES ~
 
 A list of all the variables available in workspace files:
 
-- `${workspace_description}` - The description at the top of the workspace file
 - `${workspace_name}` - The name of the workspace file
 - `${group_name}` - The name of the group that is being processed by the slash command
-- `${group_files}` - A list of all the files and symbols in the group
 - `${filename}` - The name of the current file/symbol that is being processed
-- `${cwd}` - The current working directory of the workspace file
-- `${path}` - The path to the current file/symbol
+- `${cwd}` - The current working directory
+- `${path}` - The path to the current file/symbol/url
+
+When building your workspace file, you can create a `vars` object which
+contains custom variables for use elsewhere in file. For example:
+
+>json
+    {
+      "name": "CodeCompanion.nvim",
+      "version": "1.0.0",
+      "system_prompt": "Workspace system prompt",
+      "vars": {
+        "test_desc": "This is a test description",
+        "stubs": "tests/stubs"
+      },
+      "groups": [
+        {
+          "name": "Test",
+          "description": "${test_desc}",
+          "system_prompt": "Test group system prompt",
+          "data": ["stub-go"]
+        }
+      ],
+      "data": {
+        "stub-go": {
+          "type": "file",
+          "path": "${stubs}/example.go",
+          "description": "An example Go file"
+        },
+      }
+    }
+<
+
+
+GENERATING A WORKSPACE FILE ~
+
+The plugin comes with an
+|codecompanion-usage-action-palette.html-default-prompts| prompt to help you
+generate a workspace file. It will open up a chat buffer and add the workspace
+JSON schema as part of a prompt. It will also determine if you have a workspace
+file in your current working directory, and if you do, the prompts will be
+altered to ask the LLM to help you in adding a group, rather than generating a
+whole workspace file.
+
+Whilst this approach is helpful, you’ll still need to manually share a lot of
+context for the LLM to be able to understand the intricacies of your codebase.
+A more optimal way is to leverage VectorCode
+<https://github.com/Davidyz/VectorCode>. The prompt will determine if you have
+this installed and add it to the chat as a tool.
+
+Remember, the key objective with a workspace file is to rapidly share context
+with an LLM, making it’s response more accurate and more useful.
+
+
+CREATING EXTENSIONS              *codecompanion-extending-creating-extensions*
+
+CodeCompanion supports extensions similar to telescope.nvim, allowing users to
+create functionality that can be shared with others. Extensions can either be
+distributed as plugins or defined locally in your configuration.
+
+
+EXTENSIONS ~
+
+Extensions are configured in your CodeCompanion setup:
+
+>lua
+    -- Install the extension
+    {
+      "olimorris/codecompanion.nvim",
+      dependencies = {
+        "author/codecompanion_history.nvim" -- history extension
+      }
+    }
+
+    -- Configure in your setup
+    require("codecompanion").setup({
+      extensions = {
+        codecompanion_history = {
+          enabled = true, -- defaults to true
+          opts = {
+            history_file = vim.fn.stdpath("data") .. "/codecompanion_chats.json",
+            max_history = 10, -- maximum number of chats to keep
+          }
+        }
+      }
+    })
+<
+
+
+CREATING EXTENSIONS ~
+
+Extensions are typically distributed as plugins. Create a new plugin with the
+following structure:
+
+>
+    your-extension/
+    ├── lua/
+    │   └── codecompanion/
+    │       └── _extensions/
+    │           └── your_extension/
+    │               └── init.lua  -- Main extension file
+    └── README.md
+<
+
+The init.lua file should export a module that provides setup and optional
+exports:
+
+>lua
+    ---@class CodeCompanion.Extension
+    ---@field setup fun(opts: table) Function called when extension is loaded
+    ---@field exports? table Functions exposed via codecompanion.extensions.your_extension
+    local Extension = {}
+
+    ---Setup the extension
+    ---@param opts table Configuration options
+    function Extension.setup(opts)
+      -- Initialize extension
+      -- Add actions, keymaps etc.
+    end
+
+    -- Optional: Functions exposed via codecompanion.extensions.your_extension
+    Extension.exports = {
+      clear_history = function() end
+    }
+
+    return Extension
+<
+
+
+EXTENDING CHAT FUNCTIONALITY
+
+A common pattern is to add keymaps, slash_commands, tools to the
+codecompanion.config object inside setup function.
+
+>lua
+    ---This is called on codecompanion setup.
+    ---You can access config via require("codecompanion.config") and chat via require("codecompanion.chat").last_chat() etc
+    function Extension.setup(opts)
+      -- Add action to chat keymaps
+      local chat_keymaps = require("codecompanion.config").strategies.chat.keymaps
+
+      chat_keymaps.open_saved_chats = {
+        modes = {
+          n = opts.keymap or "gh",
+        },
+        description = "Open Saved Chats",
+        callback = function(chat)
+            -- Implementation of opening saved chats
+            vim.notify("Opening saved chats for " .. chat.id)
+        end
+      }
+    end
+<
+
+Once configured, extension exports are accessible via:
+
+>lua
+    local codecompanion = require("codecompanion")
+    -- Use exported functions
+    codecompanion.extensions.codecompanion_history.clear_history()
+<
+
+
+LOCAL EXTENSIONS ~
+
+Extensions can also be defined directly in your configuration for simpler use
+cases:
+
+>lua
+    -- Example: Adding a message editor extension
+    require("codecompanion").setup({
+      extensions = {
+        editor = {
+          enabled = true,
+          opts = {},
+          callback = {
+            setup = function(ext_config)
+              -- Add a new action to chat keymaps
+              local open_editor = {
+                modes = {
+                  n = "ge",  -- Keymap to open editor
+                },
+                description = "Open Editor",
+                callback = function(chat)
+                  -- Implementation of editor opening logic
+                  -- You have access to the chat buffer via the chat parameter
+                  vim.notify("Editor opened for chat " .. chat.id)
+                end,
+              }
+
+              -- Add the action to chat keymaps config
+              local chat_keymaps = require("codecompanion.config").strategies.chat.keymaps
+              chat_keymaps.open_editor = open_editor
+            end,
+
+            -- Optional: Expose functions
+            exports = {
+              is_editor_open = function()
+                return false -- Implementation
+              end
+            }
+          }
+        }
+      }
+    })
+<
+
+The callback can be: - A function returning the extension table - The extension
+table directly - A string path to a module that returns the extension
+
+
+DYNAMIC REGISTRATION ~
+
+Extensions can also be added dynamically using
+
+>lua
+    require("codecompanion").register_extension("codecompanion_history", {
+        callback = {
+            setup = function()
+            end,
+            exports = {}
+        },
+    })
+<
+
+
+BEST PRACTICES ~
+
+1. **Namespacing**:- Use unique names for extensions to avoid conflicts
+- Prefix functions and variables appropriately
+
+
+2. **Configuration**:- Provide sensible defaults
+- Allow customization via opts table
+- Document all options
+
+
+3. **Integration**:- Follow CodeCompanion’s patterns for actions and tools
+- Use existing utilities like keymaps.set_keymap
+- Handle errors appropriately
+
+
+4. **Documentation**:- Document installation process
+- List all available options
+- Provide usage examples
+
+
 
 Generated by panvimdoc <https://github.com/kdheepak/panvimdoc>
 

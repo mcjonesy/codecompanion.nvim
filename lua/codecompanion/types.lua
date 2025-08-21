@@ -30,32 +30,21 @@
 ---@class CodeCompanion.Variable
 ---@field Chat CodeCompanion.Chat The chat buffer
 ---@field config table The config for the variable
----@field params string
+---@field target string The buffer that's being targeted by the variable
+---@field params string Any additional parameters for the variable
 
 ---@class CodeCompanion.VariableArgs
 ---@field Chat CodeCompanion.Chat The chat buffer
 ---@field config table The config for the variable
----@field params string
-
----@class CodeCompanion.Cmd
----@field adapter CodeCompanion.Adapter The adapter to use for the chat
----@field context table The context of the buffer that the chat was initiated from
----@field prompts table Any prompts to be sent to the LLM
-
----@class CodeCompanion.WatcherChange
----@field type "add"|"delete"|"modify" The type of change
----@field start number Starting line number
----@field end_line number Ending line number
----@field lines? string[] Added or deleted lines
----@field old_lines? string[] Original lines (for modify type)
----@field new_lines? string[] New lines (for modify type)
+---@field target string The buffer that's being targeted by the variable
+---@field params string Any additional parameters for the variable
 
 ---@class CodeCompanion.Watchers
 ---@field buffers table<number, CodeCompanion.WatcherState> Map of buffer numbers to their states
 ---@field augroup integer The autocmd group ID
 ---@field watch fun(self: CodeCompanion.Watchers, bufnr: number): nil Start watching a buffer
 ---@field unwatch fun(self: CodeCompanion.Watchers, bufnr: number): nil Stop watching a buffer
----@field get_changes fun(self: CodeCompanion.Watchers, bufnr: number): CodeCompanion.WatcherChange[]|nil Get the latest changes in the buffer
+---@field get_changes fun(self: CodeCompanion.Watchers, bufnr: number): boolean, table
 
 ---@class CodeCompanion.WatcherState
 ---@field content string[] Complete buffer content
@@ -76,60 +65,56 @@
 ---@field reuse fun(chat: CodeCompanion.Chat): boolean Should the current prompt be reused?
 ---@field order number The order in which the events are executed
 
----@class CodeCompanion.Chat.Ref
----@field source string The source of the reference e.g. slash_command
----@field id string The unique ID of the reference which links it to a message in the chat buffer and is displayed to the user
+---@class CodeCompanion.Chat.ContextItem
+---@field bufnr? number The buffer number if this is buffer context
+---@field id string The unique ID of the context which links it to a message in the chat buffer and is displayed to the user
+---@field source string The source of the context e.g. slash_command
 ---@field opts? table
----@field opts.pinned? boolean Whether this reference is pinned
----@field opts.watched? boolean Whether this reference is being watched for changes
----@field bufnr? number The buffer number if this is a buffer reference
+---@field opts.pinned? boolean Whether this context item is pinned
+---@field opts.watched? boolean Whether this context item is being watched for changes
+---@field opts.visible? boolean Whether this context item should be shown in the chat UI
 
 ---@class CodeCompanion.Chat.UI
----@field adapter CodeCompanion.Adapter
----@field aug number
----@field bufnr number
----@field header_ns number
----@field id number
----@field roles table
----@field winnr number
----@field settings table
----@field tokens number
+---@field adapter CodeCompanion.Adapter The adapter in use for the chat
+---@field aug number The autocmd group ID
+---@field chat_bufnr number The buffer number of the chat
+---@field chat_id number The unique ID of the chat
+---@field folds CodeCompanion.Chat.UI.Folds The folds for the chat
+---@field header_ns number The namespace for the header
+---@field roles table The roles in the chat
+---@field winnr number The window number of the chat
+---@field settings table The settings for the chat
+---@field tokens number The current token count in the chat
 
 ---@class CodeCompanion.Chat.UIArgs
 ---@field adapter CodeCompanion.Adapter
----@field bufnr number
----@field id number
+---@field chat_bufnr number
+---@field chat_id number
 ---@field roles table
 ---@field winnr number
 ---@field settings table
 ---@field tokens number
 
----@class CodeCompanion.Tool
+---@class CodeCompanion.Tools.Tool
 ---@field name string The name of the tool
 ---@field cmds table The commands to execute
+---@field function_call table The function call from the LLM
 ---@field schema table The schema that the LLM must use in its response to execute a tool
----@field system_prompt fun(schema: table): string The system prompt to the LLM explaining the tool and the schema
+---@field system_prompt string | fun(schema: table): string The system prompt to the LLM explaining the tool and the schema
 ---@field opts? table The options for the tool
 ---@field env? fun(schema: table): table|nil Any environment variables that can be used in the *_cmd fields. Receives the parsed schema from the LLM
----@field handlers table Functions which can be called during the execution of the tool
----@field handlers.setup? fun(self: CodeCompanion.Tools): any Function used to setup the tool. Called before any commands
----@field handlers.approved? fun(self: CodeCompanion.Tools): boolean Function to call if an approval is needed before running a command
----@field handlers.on_exit? fun(self: CodeCompanion.Tools): any Function to call at the end of all of the commands
----@field output? table Functions which can be called after the command finishes
----@field output.rejected? fun(self: CodeCompanion.Tools, cmd: table): any Function to call if the user rejects running a command
----@field output.error? fun(self: CodeCompanion.Tools, cmd: table, error: table|string): any Function to call if the tool is unsuccessful
----@field output.success? fun(self: CodeCompanion.Tools, cmd: table, output: table|string): any Function to call if the tool is successful
----@field request table The request from the LLM to use the Tool
-
----@class CodeCompanion.Tools
----@field aug number The augroup for the tool
----@field bufnr number The buffer of the chat buffer
----@field chat CodeCompanion.Chat The chat buffer that initiated the tool
----@field extracted table The extracted tools from the LLM's response
----@field messages table The messages in the chat buffer
----@field tool CodeCompanion.Tool The current tool that's being run
----@field agent_config table The agent strategy from the config
----@field tools_ns integer The namespace for the virtual text that appears in the header
+---@field handlers table Functions which handle the execution of a tool
+---@field handlers.setup? fun(self: CodeCompanion.Tools.Tool, tools: CodeCompanion.Tools): any Function used to setup the tool. Called before any commands
+---@field handlers.prompt_condition? fun(self: CodeCompanion.Tools.Tool, tools: CodeCompanion.Tools, config: table): boolean Function to determine whether to show the promp to the user or not
+---@field handlers.on_exit? fun(self: CodeCompanion.Tools.Tool, tools: CodeCompanion.Tools): any Function to call at the end of a group of commands or functions
+---@field output? table Functions which handle the output after every execution of a tool
+---@field output.prompt fun(self: CodeCompanion.Tools.Tool, tools: CodeCompanion.Tools): string The message which is shared with the user when asking for their approval
+---@field output.rejected? fun(self: CodeCompanion.Tools.Tool, tools: CodeCompanion.Tools, cmd: table): any Function to call if the user rejects running a command
+---@field output.error? fun(self: CodeCompanion.Tools.Tool, tools: CodeCompanion.Tools, cmd: table, stderr: table, stdout?: table): any The function to call if an error occurs
+---@field output.success? fun(self: CodeCompanion.Tools.Tool, tools: CodeCompanion.Tools, cmd: table, stdout: table): any Function to call if the tool is successful
+---@field output.cancelled? fun(self: CodeCompanion.Tools.Tool, tools: CodeCompanion.Tools, cmd: table): any Function to call if the tool is cancelled
+---@field args table The arguments sent over by the LLM when making the request
+---@field tool table The tool configuration from the config file
 
 ---@class CodeCompanion.SlashCommand.Provider
 ---@field output function The function to call when a selection is made

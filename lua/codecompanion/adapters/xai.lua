@@ -10,11 +10,11 @@ return {
   },
   opts = {
     stream = true,
+    vision = false,
   },
   features = {
     text = true,
     tokens = true,
-    vision = false,
   },
   url = "https://api.x.ai/v1/chat/completions",
   env = {
@@ -53,6 +53,7 @@ return {
     end,
   },
   schema = {
+    ---@type CodeCompanion.Schema
     model = {
       order = 1,
       mapping = "parameters",

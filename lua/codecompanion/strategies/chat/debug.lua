@@ -83,7 +83,10 @@ function Debug:render()
   local adapter = vim.deepcopy(self.chat.adapter)
   self.adapter = adapter
 
-  local bufname = buf_utils.name_from_bufnr(self.chat.context.bufnr)
+  local bufname
+  if _G.codecompanion_current_context and api.nvim_buf_is_valid(_G.codecompanion_current_context) then
+    bufname = buf_utils.name_from_bufnr(_G.codecompanion_current_context)
+  end
 
   -- Get the current settings from the chat buffer rather than making new ones
   local current_settings = self.settings or {}
@@ -97,8 +100,10 @@ function Debug:render()
   local lines = {}
 
   table.insert(lines, '-- Adapter: "' .. adapter.formatted_name .. '"')
-  table.insert(lines, "-- Buffer: " .. self.chat.bufnr)
-  table.insert(lines, '-- Context: "' .. bufname .. '" (' .. self.chat.context.bufnr .. ")")
+  table.insert(lines, "-- Buffer Number: " .. self.chat.bufnr)
+  if bufname then
+    table.insert(lines, '-- Following Buffer: "' .. bufname .. '" (' .. _G.codecompanion_current_context .. ")")
+  end
 
   -- Add settings
   if not config.display.chat.show_settings then
@@ -144,7 +149,7 @@ function Debug:render()
         end)
 
         if type(val) == "function" then
-          val = val()
+          val = val(self.adapter)
         end
         if vim.tbl_count(models) > 1 then
           table.insert(lines, "  " .. key .. ' = "' .. val .. '", ' .. other_models)
@@ -157,6 +162,13 @@ function Debug:render()
         table.insert(lines, "  " .. key .. " = " .. tostring(val) .. ",")
       elseif type(val) == "string" then
         table.insert(lines, "  " .. key .. ' = "' .. val .. '",')
+      elseif type(val) == "function" then
+        local expanded_val = val(self.adapter)
+        if type(expanded_val) == "number" or type(expanded_val) == "boolean" then
+          table.insert(lines, "  " .. key .. " = " .. tostring(val(self.adapter)) .. ",")
+        else
+          table.insert(lines, "  " .. key .. ' = "' .. tostring(val(self.adapter)) .. '",')
+        end
       else
         table.insert(lines, "  " .. key .. " = " .. vim.inspect(val))
       end
@@ -177,6 +189,7 @@ function Debug:render()
 
   self.bufnr = api.nvim_create_buf(false, true)
 
+  api.nvim_buf_set_name(self.bufnr, "CodeCompanion_debug")
   -- Set the keymaps as per the user's chat buffer config
   local maps = {}
   local config_maps = vim.deepcopy(config.strategies.chat.keymaps)
@@ -205,26 +218,14 @@ function Debug:render()
     })
     :set()
 
-  local window = vim.deepcopy(config.display.chat.window)
-  if type(config.display.chat.debug_window.height) == "function" then
-    window.height = config.display.chat.debug_window.height()
-  else
-    window.height = config.display.chat.debug_window.height
-  end
-  if type(config.display.chat.debug_window.width) == "function" then
-    window.width = config.display.chat.debug_window.width()
-  else
-    window.width = config.display.chat.debug_window.width
-  end
+  local window_config = config.display.chat.child_window
 
   ui.create_float(lines, {
     bufnr = self.bufnr,
     filetype = "lua",
-    ignore_keymaps = true,
-    relative = "editor",
     title = "Debug Chat",
-    window = window,
-    opts = {
+    window = window_config,
+    opts = window_config.opts or {
       wrap = true,
     },
   })

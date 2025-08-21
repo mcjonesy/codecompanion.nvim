@@ -3,46 +3,54 @@ if vim.g.loaded_codecompanion then
 end
 vim.g.loaded_codecompanion = true
 
-if vim.fn.has("nvim-0.10.0") == 0 then
-  return vim.notify("CodeCompanion.nvim requires Neovim 0.10.0+", vim.log.levels.ERROR)
+if vim.fn.has("nvim-0.11") == 0 then
+  return vim.notify("CodeCompanion.nvim requires Neovim 0.11+", vim.log.levels.ERROR)
 end
 
 local config = require("codecompanion.config")
+local util = require("codecompanion.utils")
 local api = vim.api
 
--- Set the highlight groups
+api.nvim_set_hl(0, "CodeCompanionChatInfo", { link = "DiagnosticInfo", default = true })
+api.nvim_set_hl(0, "CodeCompanionChatError", { link = "DiagnosticError", default = true })
+api.nvim_set_hl(0, "CodeCompanionChatWarn", { link = "DiagnosticWarn", default = true })
+api.nvim_set_hl(0, "CodeCompanionChatSubtext", { link = "Comment", default = true })
 api.nvim_set_hl(0, "CodeCompanionChatHeader", { link = "@markup.heading.2.markdown", default = true })
 api.nvim_set_hl(0, "CodeCompanionChatSeparator", { link = "@punctuation.special.markdown", default = true })
 api.nvim_set_hl(0, "CodeCompanionChatTokens", { link = "Comment", default = true })
-api.nvim_set_hl(0, "CodeCompanionChatAgent", { link = "Constant", default = true })
 api.nvim_set_hl(0, "CodeCompanionChatTool", { link = "Special", default = true })
+api.nvim_set_hl(0, "CodeCompanionChatToolGroup", { link = "Constant", default = true })
+api.nvim_set_hl(0, "CodeCompanionChatToolSuccess", { link = "DiagnosticOK", default = true })
+api.nvim_set_hl(0, "CodeCompanionChatToolSuccessIcon", { link = "DiagnosticOK", default = true })
+api.nvim_set_hl(0, "CodeCompanionChatToolFailure", { link = "DiagnosticError", default = true })
+api.nvim_set_hl(0, "CodeCompanionChatToolFailureIcon", { link = "Error", default = true })
 api.nvim_set_hl(0, "CodeCompanionChatVariable", { link = "Identifier", default = true })
 api.nvim_set_hl(0, "CodeCompanionVirtualText", { link = "Comment", default = true })
+local visual_hl = api.nvim_get_hl(0, { name = "Visual" })
+pcall(api.nvim_set_hl, 0, "CodeCompanionInlineDiffHint", { bg = visual_hl.bg, default = true })
 
 -- Setup syntax highlighting for the chat buffer
-local group = "codecompanion.syntax"
-api.nvim_create_augroup(group, { clear = true })
+local syntax_group = api.nvim_create_augroup("codecompanion.syntax", { clear = true })
 api.nvim_create_autocmd("FileType", {
   pattern = "codecompanion",
-  group = group,
+  group = syntax_group,
   callback = vim.schedule_wrap(function()
-    vim.iter(config.strategies.chat.variables):each(function(name, var)
-      vim.cmd.syntax('match CodeCompanionChatVariable "#' .. name .. '"')
-      if var.opts and var.opts.has_params then
-        vim.cmd.syntax('match CodeCompanionChatVariable "#' .. name .. '{[^}]*}"')
-      end
-    end)
-    vim.iter(config.strategies.chat.agents.tools):each(function(name, _)
-      vim.cmd.syntax('match CodeCompanionChatTool "@' .. name .. '"')
+    vim.iter(config.strategies.chat.variables):each(function(name)
+      vim.cmd.syntax('match CodeCompanionChatVariable "#{' .. name .. '}"')
+      vim.cmd.syntax('match CodeCompanionChatVariable "#{' .. name .. ':[^}]*}"')
+      vim.cmd.syntax('match CodeCompanionChatVariable "#{' .. name .. ':[^}]*}{[^}]*}"')
     end)
     vim
-      .iter(config.strategies.chat.agents)
+      .iter(config.strategies.chat.tools)
       :filter(function(name)
-        return name ~= "tools"
+        return name ~= "groups" and name ~= "opts"
       end)
       :each(function(name, _)
-        vim.cmd.syntax('match CodeCompanionChatAgent "@' .. name .. '"')
+        vim.cmd.syntax('match CodeCompanionChatTool "@{' .. name .. '}"')
       end)
+    vim.iter(config.strategies.chat.tools.groups):each(function(name, _)
+      vim.cmd.syntax('match CodeCompanionChatToolGroup "@{' .. name .. '}"')
+    end)
   end),
 })
 
@@ -61,49 +69,41 @@ local diagnostic_config = {
 vim.diagnostic.config(diagnostic_config, config.INFO_NS)
 vim.diagnostic.config(diagnostic_config, config.ERROR_NS)
 
--- Setup completion for blink.cmp and cmp
-local has_cmp, cmp = pcall(require, "cmp")
-local has_blink, blink = pcall(require, "blink.cmp")
-if has_blink then
-  pcall(function()
-    blink.add_provider("codecompanion", {
-      name = "CodeCompanion",
-      module = "codecompanion.providers.completion.blink",
-      enabled = true,
-      score_offset = 10,
-    })
-  end)
-  pcall(function()
-    blink.add_filetype_source("codecompanion", "codecompanion")
-  end)
-  -- We need to check for blink alongside cmp as blink.compat has a module that
-  -- is detected by a require("cmp") call and a lot of users have it installed
-  -- Reference: https://github.com/olimorris/codecompanion.nvim/discussions/501
-elseif has_cmp and not has_blink then
-  local completion = "codecompanion.providers.completion.cmp"
-  cmp.register_source("codecompanion_models", require(completion .. ".models").new(config))
-  cmp.register_source("codecompanion_slash_commands", require(completion .. ".slash_commands").new(config))
-  cmp.register_source("codecompanion_tools", require(completion .. ".tools").new(config))
-  cmp.register_source("codecompanion_variables", require(completion .. ".variables").new())
-  cmp.setup.filetype("codecompanion", {
-    enabled = true,
-    sources = vim.list_extend({
-      { name = "codecompanion_models" },
-      { name = "codecompanion_slash_commands" },
-      { name = "codecompanion_tools" },
-      { name = "codecompanion_variables" },
-    }, cmp.get_config().sources),
-  })
-end
+local buf_group = api.nvim_create_augroup("codecompanion.buffers", { clear = true })
 
--- Capture the last terminal buffer
 _G.codecompanion_last_terminal = nil
 api.nvim_create_autocmd("TermEnter", {
+  group = buf_group,
   desc = "Capture the last terminal buffer",
-  callback = function()
-    local bufnr = api.nvim_get_current_buf()
+  callback = function(args)
+    local bufnr = args.buf
     if vim.bo[bufnr].buftype == "terminal" then
       _G.codecompanion_last_terminal = bufnr
+    end
+  end,
+})
+
+_G.codecompanion_current_context = nil
+api.nvim_create_autocmd("BufEnter", {
+  group = buf_group,
+  desc = "Capture the last buffer the user was in",
+  callback = function(args)
+    local bufnr = args.buf
+    if not api.nvim_buf_is_valid(bufnr) then
+      return
+    end
+
+    local buffer_config = config.strategies.chat.variables.buffer.opts
+    local excluded = (buffer_config and buffer_config.excluded) or {}
+    local excluded_fts = excluded.fts or {}
+    local excluded_buftypes = excluded.buftypes or {}
+
+    if
+      not vim.tbl_contains(excluded_fts, vim.bo[bufnr].filetype)
+      and not vim.tbl_contains(excluded_buftypes, vim.bo[bufnr].buftype)
+    then
+      _G.codecompanion_current_context = bufnr
+      util.fire("ContextChanged", { bufnr = bufnr })
     end
   end,
 })

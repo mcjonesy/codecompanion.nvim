@@ -55,7 +55,7 @@ require("codecompanion").setup({
         },
         {
           role = "user",
-          content = "Please generate some HTML boilerplate for me. Return the code only and no markdown codeblocks",
+          content = "<user_prompt>Please generate some HTML boilerplate for me. Return the code only and no markdown codeblocks</user_prompt>",
         },
       },
     },
@@ -63,7 +63,7 @@ require("codecompanion").setup({
 })
 ```
 
-Nice! We've used some careful prompting to ensure that we get HTML boilerplate back from the LLM. Oh...and notice that I added a key map too!
+Nice! We've used some careful prompting to ensure that we get HTML boilerplate back from the LLM. Oh...and notice that I added a key map too! If you plan on using the `inline` classification, it's recommended to put your prompt within `<user_prompt></user_prompt>` tags to make it explicit to the LLM what your ask is.
 
 ### Leveraging pre-hooks
 
@@ -75,6 +75,7 @@ To make this example complete, we can leverage a pre-hook to create a new buffer
     strategy = "inline",
     description = "Generate some boilerplate HTML",
     opts = {
+      ---@return number
       pre_hook = function()
         local bufnr = vim.api.nvim_create_buf(true, false)
         vim.api.nvim_set_current_buf(bufnr)
@@ -342,14 +343,29 @@ It may also be useful to create custom prompts that do not send the default syst
 }
 ```
 
-### Prompts with References
+### Setting a custom intro message
 
-It can be useful to pre-load a chat buffer with references to _files_, _symbols_ or even _urls_. This makes conversing with an LLM that much more productive. As per `v11.9.0`, this can now be accomplished, as per the example below:
+To customize the chat buffer UI, you can set a custom intro message:
 
 ```lua
-["Test References"] = {
+["Your_New_Prompt"] = {
   strategy = "chat",
-  description = "Add some references",
+  description = "Your Special New Prompt",
+  opts = {
+    intro_message = "Welcome to your Special New Prompt"
+  },
+  -- Your prompts here
+}
+```
+
+### Prompts with Context
+
+It can be useful to pre-load a chat buffer with context from _files_, _symbols_ or even _urls_. This makes conversing with an LLM that much more productive. This can now accomplished, as per the example below:
+
+```lua
+["Test Context"] = {
+  strategy = "chat",
+  description = "Add some context",
   opts = {
     index = 11,
     is_default = true,
@@ -358,7 +374,7 @@ It can be useful to pre-load a chat buffer with references to _files_, _symbols_
     auto_submit = false,
   },
   -- These will appear at the top of the chat buffer
-  references = {
+  context = {
     {
       type = "file",
       path = { -- This can be a string or a table of values

@@ -1,193 +1,104 @@
----Source:
----https://github.com/google-gemini/cookbook/blob/main/quickstarts/rest/Streaming_REST.ipynb
-
-local log = require("codecompanion.utils.log")
-local utils = require("codecompanion.utils.adapters")
+local openai = require("codecompanion.adapters.openai")
 
 ---@class Gemini.Adapter: CodeCompanion.Adapter
 return {
   name = "gemini",
   formatted_name = "Gemini",
   roles = {
-    llm = "model",
+    llm = "assistant",
     user = "user",
   },
   opts = {
     stream = true,
-  },
-  features = {
-    tokens = true,
-    text = true,
+    tools = true,
     vision = true,
   },
-  url = "https://generativelanguage.googleapis.com/v1beta/models/${model}${stream}key=${api_key}",
+  features = {
+    text = true,
+    tokens = true,
+  },
+  url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
   env = {
     api_key = "GEMINI_API_KEY",
-    model = "schema.model.default",
-    stream = function(self)
-      local stream = ":generateContent?"
-      if self.opts.stream then
-        -- NOTE: With sse each stream chunk is a GenerateContentResponse object with a portion of the output text in candidates[0].content.parts[0].text
-        stream = ":streamGenerateContent?alt=sse&"
-      end
-      return stream
-    end,
   },
   headers = {
+    Authorization = "Bearer ${api_key}",
     ["Content-Type"] = "application/json",
   },
   handlers = {
-    ---Set the parameters
-    ---@param self CodeCompanion.Adapter
-    ---@param params table
-    ---@param messages table
-    ---@return table
-    form_parameters = function(self, params, messages)
-      return params
-    end,
-
-    ---Set the format of the role and content for the messages from the chat buffer
-    ---@param self CodeCompanion.Adapter
-    ---@param messages table Format is: { contents = { parts { text = "Your prompt here" } }
-    ---@return table
-    form_messages = function(self, messages)
-      local system = vim
-        .iter(messages)
-        :filter(function(msg)
-          return msg.role == "system"
-        end)
-        :map(function(msg)
-          return { text = msg.content }
-        end)
-        :totable()
-
-      local system_instruction
-      if #system > 0 then
-        system_instruction = {
-          role = self.roles.user,
-          parts = system,
-        }
+    setup = function(self)
+      -- Make sure the individual model options are set
+      local model = self.schema.model.default
+      local model_opts = self.schema.model.choices[model]
+      if model_opts and model_opts.opts then
+        self.opts = vim.tbl_deep_extend("force", self.opts, model_opts.opts)
+        if not model_opts.opts.has_vision then
+          self.opts.vision = false
+        end
       end
 
-      -- Format messages (remove all system prompts)
-      local output = vim
-        .iter(messages)
-        :filter(function(msg)
-          return msg.role ~= "system"
-        end)
-        :map(function(msg)
-          return {
-            role = self.roles.user,
-            parts = {
-              { text = msg.content },
-            },
-          }
-        end)
-        :totable()
-
-      local result = {
-        contents = output,
-      }
-
-      if system_instruction then
-        result.system_instruction = system_instruction
+      if self.opts and self.opts.stream then
+        self.parameters = self.parameters or {}
+        self.parameters.stream = true
+        self.parameters.stream_options = { include_usage = true }
       end
 
-      return result
+      return true
     end,
 
-    ---Returns the number of tokens generated from the LLM
-    ---@param self CodeCompanion.Adapter
-    ---@param data string The data from the LLM
-    ---@return number|nil
+    --- Use the OpenAI adapter for the bulk of the work
     tokens = function(self, data)
-      if data and data ~= "" then
-        data = utils.clean_streamed_data(data)
-        local ok, json = pcall(vim.json.decode, data, { luanil = { object = true } })
-
-        if ok then
-          return json.usageMetadata.totalTokenCount
-        end
-      end
+      return openai.handlers.tokens(self, data)
     end,
-
-    ---Output the data from the API ready for insertion into the chat buffer
-    ---@param self CodeCompanion.Adapter
-    ---@param data string The streamed JSON data from the API, also formatted by the format_data handler
-    ---@return table|nil
-    chat_output = function(self, data)
-      local output = {}
-
-      if data and data ~= "" then
-        data = utils.clean_streamed_data(data)
-        local ok, json = pcall(vim.json.decode, data, { luanil = { object = true } })
-
-        if ok and json.candidates[1].content then
-          output.role = "llm"
-          output.content = json.candidates[1].content.parts[1].text
-
-          return {
-            status = "success",
-            output = output,
-          }
-        end
-      end
+    form_parameters = function(self, params, messages)
+      return openai.handlers.form_parameters(self, params, messages)
     end,
-
-    ---Output the data from the API ready for inlining into the current buffer
-    ---@param self CodeCompanion.Adapter
-    ---@param data table The streamed JSON data from the API, also formatted by the format_data handler
-    ---@param context table Useful context about the buffer to inline to
-    ---@return table|nil
+    form_tools = function(self, tools)
+      return openai.handlers.form_tools(self, tools)
+    end,
+    form_messages = function(self, messages)
+      return openai.handlers.form_messages(self, messages)
+    end,
+    chat_output = function(self, data, tools)
+      return openai.handlers.chat_output(self, data, tools)
+    end,
+    tools = {
+      format_tool_calls = function(self, tools)
+        return openai.handlers.tools.format_tool_calls(self, tools)
+      end,
+      output_response = function(self, tool_call, output)
+        return openai.handlers.tools.output_response(self, tool_call, output)
+      end,
+    },
     inline_output = function(self, data, context)
-      if data and data ~= "" then
-        data = utils.clean_streamed_data(data)
-        local ok, json = pcall(vim.json.decode, data, { luanil = { object = true } })
-
-        if not ok then
-          return
-        end
-
-        local text = json.candidates[1].content.parts[1].text
-        local model = json.modelVersion
-
-        if model == "gemini-2.0-flash-exp" then
-          text = text:gsub("```", "")
-          if context then
-            text = text:gsub(context.filetype .. "\n", "")
-          end
-        end
-
-        return text
-      end
+      return openai.handlers.inline_output(self, data, context)
     end,
-
-    ---Function to run when the request has completed. Useful to catch errors
-    ---@param self CodeCompanion.Adapter
-    ---@param data table
-    ---@return nil
     on_exit = function(self, data)
-      if data.status >= 400 then
-        log:error("Error: %s", data.body)
-      end
+      return openai.handlers.on_exit(self, data)
     end,
   },
   schema = {
+    ---@type CodeCompanion.Schema
     model = {
       order = 1,
+      mapping = "parameters",
       type = "enum",
       desc = "The model that will complete your prompt. See https://ai.google.dev/gemini-api/docs/models/gemini#model-variations for additional details and options.",
-      default = "gemini-2.0-flash",
+      default = "gemini-2.5-flash",
       choices = {
-        "gemini-2.0-flash",
-        "gemini-1.5-flash",
-        "gemini-1.5-pro",
-        "gemini-1.0-pro",
+        ["gemini-2.5-pro"] = { opts = { can_reason = true, has_vision = true } },
+        ["gemini-2.5-flash"] = { opts = { can_reason = true, has_vision = true } },
+        ["gemini-2.5-flash-preview-05-20"] = { opts = { can_reason = true, has_vision = true } },
+        ["gemini-2.0-flash"] = { opts = { has_vision = true } },
+        ["gemini-2.0-flash-lite"] = { opts = { has_vision = true } },
+        ["gemini-1.5-pro"] = { opts = { has_vision = true } },
+        ["gemini-1.5-flash"] = { opts = { has_vision = true } },
       },
     },
-    maxOutputTokens = {
+    ---@type CodeCompanion.Schema
+    max_tokens = {
       order = 2,
-      mapping = "body.generationConfig",
+      mapping = "parameters",
       type = "integer",
       optional = true,
       default = nil,
@@ -196,9 +107,10 @@ return {
         return n > 0, "Must be greater than 0"
       end,
     },
+    ---@type CodeCompanion.Schema
     temperature = {
       order = 3,
-      mapping = "body.generationConfig",
+      mapping = "parameters",
       type = "number",
       optional = true,
       default = nil,
@@ -207,9 +119,10 @@ return {
         return n >= 0 and n <= 2, "Must be between 0 and 2"
       end,
     },
-    topP = {
+    ---@type CodeCompanion.Schema
+    top_p = {
       order = 4,
-      mapping = "body.generationConfig",
+      mapping = "parameters",
       type = "integer",
       optional = true,
       default = nil,
@@ -218,32 +131,30 @@ return {
         return n > 0, "Must be greater than 0"
       end,
     },
-    topK = {
+    ---@type CodeCompanion.Schema
+    reasoning_effort = {
       order = 5,
-      mapping = "body.generationConfig",
-      type = "integer",
+      mapping = "parameters",
+      type = "string",
       optional = true,
-      default = nil,
-      desc = "The maximum number of tokens to consider when sampling",
-      validate = function(n)
-        return n > 0, "Must be greater than 0"
+      condition = function(self)
+        local model = self.schema.model.default
+        if type(model) == "function" then
+          model = model()
+        end
+        if self.schema.model.choices[model] and self.schema.model.choices[model].opts then
+          return self.schema.model.choices[model].opts.can_reason
+        end
+        return false
       end,
-    },
-    presencePenalty = {
-      order = 6,
-      mapping = "body.generationConfig",
-      type = "number",
-      optional = true,
-      default = nil,
-      desc = "Presence penalty applied to the next token's logprobs if the token has already been seen in the response",
-    },
-    frequencyPenalty = {
-      order = 7,
-      mapping = "body.generationConfig",
-      type = "number",
-      optional = true,
-      default = nil,
-      desc = "Frequency penalty applied to the next token's logprobs, multiplied by the number of times each token has been seen in the response so far.",
+      default = "medium",
+      desc = "Constrains effort on reasoning for reasoning models. Reducing reasoning effort can result in faster responses and fewer tokens used on reasoning in a response.",
+      choices = {
+        "high",
+        "medium",
+        "low",
+        "none",
+      },
     },
   },
 }

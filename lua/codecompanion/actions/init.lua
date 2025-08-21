@@ -1,9 +1,8 @@
 local Strategy = require("codecompanion.strategies")
 local config = require("codecompanion.config")
+local log = require("codecompanion.utils.log")
 local prompt_library = require("codecompanion.actions.prompt_library")
 local static_actions = require("codecompanion.actions.static")
-
-local log = require("codecompanion.utils.log")
 local util = require("codecompanion.utils")
 
 ---@class CodeCompanion.Actions
@@ -61,17 +60,17 @@ end
 ---Resolve the selected item into a strategy
 ---@param item table
 ---@param context table
----@return nil
+---@return CodeCompanion.Strategies
 function Actions.resolve(item, context)
   return Strategy.new({
-    context = context,
+    buffer_context = context,
     selected = item,
   }):start(item.strategy)
 end
 
 ---Launch the action palette
 ---@param context table The buffer context
----@param args? { name: string, opts: table } The provider to use
+---@param args? { provider: {name: string, opts: table } } The provider to use
 ---@return nil
 function Actions.launch(context, args)
   local items = Actions.items(context)

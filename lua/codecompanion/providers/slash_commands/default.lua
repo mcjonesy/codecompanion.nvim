@@ -1,5 +1,7 @@
+local Path = require("plenary.path")
 local buf = require("codecompanion.utils.buffers")
 local log = require("codecompanion.utils.log")
+local scan = require("plenary.scandir")
 
 local api = vim.api
 
@@ -19,22 +21,21 @@ end
 
 ---Find files in the current working directory. Designed to match the Telescope API
 function Default:find_files()
-  local check_git = vim.fn.system("git rev-parse --is-inside-work-tree")
-  if check_git == 1 then
-    return log:error(
-      "The default provider requires the repository to be git enabled. Please select an alternative provider."
-    )
+  local path = Path:new(vim.fn.getcwd())
+  if not path:is_dir() then
+    return {}
   end
 
-  local tracked_files = vim.fn.system(string.format("git -C %s ls-files", vim.fn.getcwd()))
-  local untracked_files =
-    vim.fn.system(string.format("git -C %s ls-files --others --exclude-standard", vim.fn.getcwd()))
-  local files = tracked_files .. "\n" .. untracked_files
+  local files = scan.scan_dir(path:absolute(), {
+    hidden = true,
+    depth = 10,
+    add_dirs = false,
+  })
 
   self.to_display = vim
-    .iter(vim.split(files, "\n"))
+    .iter(files)
     :map(function(f)
-      return { relative_path = f, path = vim.fn.getcwd() .. "/" .. f }
+      return { relative_path = f, path = f }
     end)
     :totable()
 
@@ -71,10 +72,54 @@ function Default:buffers()
   return self
 end
 
+---Find URLs in a set of paths
+---@param urls table The table of URLs to display
+---@return nil
+function Default:urls(urls)
+  self.to_display = urls
+  self.to_format = function(item)
+    return item.display or item.url
+  end
+  return self
+end
+
+---Find images in a set of paths
+---@param paths table
+---@param filetypes table
+function Default:images(paths, filetypes)
+  local files = {}
+  for _, path in ipairs(paths) do
+    local p = Path:new(path)
+
+    local file = scan.scan_dir(p:absolute(), {
+      hidden = false,
+      depth = 5,
+      add_dirs = false,
+      search_pattern = filetypes,
+    })
+
+    vim.list_extend(files, file)
+  end
+
+  self.to_display = vim
+    .iter(files)
+    :map(function(f)
+      return { relative_path = f, path = f }
+    end)
+    :totable()
+
+  self.to_format = function(item)
+    return item.relative_path
+  end
+
+  return self
+end
+
 ---The function to display the provider
 ---@return function
 function Default:display()
   return vim.ui.select(self.to_display, {
+    kind = "codecompanion.nvim",
     prompt = self.title,
     format_item = function(item)
       return self.to_format(item)

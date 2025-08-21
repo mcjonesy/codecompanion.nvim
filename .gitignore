@@ -45,7 +45,10 @@ luac.out
 # vitepress
 doc/.vitepress/dist
 doc/.vitepress/cache
+doc/tags*
+doc/node_modules
 
+assets/
 .direnv/
 .testenv/
 .repro/
@@ -53,3 +56,4 @@ deps/
 todo.md
 /media/
 /examples/
+chroma.log

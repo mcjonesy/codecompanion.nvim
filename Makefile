@@ -4,7 +4,7 @@ docs: deps/panvimdoc
 	@echo Generating Docs...
 	@pandoc \
 		--metadata="project:codecompanion" \
-		--metadata="vimversion:NVIM v0.10.0" \
+		--metadata="vimversion:NVIM v0.11" \
 		--metadata="titledatepattern:%Y %B %d" \
 		--metadata="toc:true" \
 		--metadata="incrementheadinglevelby:0" \
@@ -22,7 +22,7 @@ docs: deps/panvimdoc
 
 format:
 	@echo Formatting...
-	@stylua lua/ -f ./stylua.toml
+	@stylua tests/ lua/ -f ./stylua.toml
 
 test: deps
 	@echo Testing...

@@ -1,8 +1,13 @@
 # Creating Adapters
 
+> [!TIP]
+> Does your LLM state that it is "OpenAI Compatible"? If so, good news, you can extend from the `openai` adapter or use the `openai_compatible` one. Something we did with the [xAI](https://github.com/olimorris/codecompanion.nvim/blob/main/lua/codecompanion/adapters/xai.lua) adapter
+
 In CodeCompanion, adapters are interfaces that act as a bridge between the plugin's functionality and an LLM. All adapters must follow the interface, below.
 
 This guide is intended to serve as a reference for anyone who wishes to contribute an adapter to the plugin or understand the inner workings of existing adapters.
+
+The plugin's in-built adapters can be found [here](https://github.com/olimorris/codecompanion.nvim/tree/main/lua/codecompanion/adapters).
 
 ## The Interface
 
@@ -48,7 +53,7 @@ env = {
 },
 ```
 
-The key `api_key` represents the name of the variable which can be injected in the adapter, and the value can represent one of:
+The key `api_key` represents the name of the variable which can be injected in the adapter via the `${}` notation, and the value can represent one of:
 
 - A command to execute on the user's system
 - An environment variable from the user's system
@@ -414,11 +419,14 @@ schema = {
     ---@type string|fun(): string
     default = "gpt-4o-2024-08-06",
     choices = {
-      "gpt-4o-2024-08-06",
+      ["o3-mini-2025-01-31"] = { opts = { can_reason = true } },
+      ["o1-2024-12-17"] = { opts = { can_reason = true } },
+      ["o1-mini-2024-09-12"] = { opts = { can_reason = true } },
       "claude-3.5-sonnet",
+      "claude-3.7-sonnet",
+      "claude-3.7-sonnet-thought",
+      "gpt-4o-2024-08-06",
       "gemini-2.0-flash-001",
-      ["o1-preview-2024-09-12"] = { opts = { stream = false } },
-      ["o1-mini-2024-09-12"] = { opts = { stream = false } },
     },
   },
 }
@@ -434,8 +442,9 @@ temperature = {
   mapping = "parameters",
   type = "number",
   default = 0,
-  condition = function(schema)
-    local model = schema.model.default
+  ---@param self CodeCompanion.Adapter
+  condition = function(self)
+    local model = self.schema.model.default
     if type(model) == "function" then
       model = model()
     end
@@ -449,5 +458,14 @@ temperature = {
 },
 ```
 
-You'll see we've specified a function call for the `condition` key. We're simply checking that the model name doesn't being with `o1` as these models don't accept temperature as a parameter. You'll also see we've specified a function call for the `validate` key. We're simply checking that the value of the temperature is between 0 and 2.
+You'll see we've specified a function call for the `condition` key. We're simply checking that the model name doesn't start with `o1` as these models don't accept temperature as a parameter. You'll also see we've specified a function call for the `validate` key. We're simply checking that the value of the temperature is between 0 and 2.
 
+## Function Calling / Tool Use
+
+In order to enable your adapter to make use of [Function Calling](https://platform.openai.com/docs/guides/function-calling?api-mode=chat), you need to setup some additional handlers:
+
+- `form_tools` - which transforms the tools provided by CodeCompanion into a schema supported by the adapter
+- `tools.format_tool_calls` - which [formats](https://platform.openai.com/docs/guides/function-calling?api-mode=chat#handling-function-calls) the adapters tool calls and puts them into the http request
+- `tools.output_response` - which formats and outputs the adapter's tool call so we it can be included in the chat buffer's messages stack
+
+You will also need to ensure that `opts.tools = true` and the `chat_output` handler has tools included as an optional final parameter like `chat_output = function(self, data, tools)`. From experience, whilst many LLMs claim to support the OpenAI API standard for function calling, they can require some additional configuration to work as expected.
